@@ -39,7 +39,7 @@ st.divider()
 # AI GENERATION LOGIC
 # ==============================================================================
 def generate_sql_problem(difficulty):
-    client = get_client()
+    # client = get_client()
     prompt = f"""
     Generate a unique, creative, and realistic SQL practice question at {difficulty} level.
     Return ONLY a raw JSON object with NO markdown code block formatting (no ```json wrapper).
