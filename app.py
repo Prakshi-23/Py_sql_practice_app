@@ -13,7 +13,6 @@ st.set_page_config(page_title="Dynamic AI Code Practice", page_icon="⚡", layou
 # ==============================================================================
 # Paste your free Gemini API key here or use st.secrets / environment variables
 # Replace your key definition with this line:
-# GEMINI_API_KEY = "AQ.Ab8RN6Kg-IthOp_XDddIzbR8t33k4l91PAD4c7UT9n2s0TSS4g"
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 
 @st.cache_resource
