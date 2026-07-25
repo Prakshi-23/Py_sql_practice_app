@@ -52,7 +52,7 @@ def generate_sql_problem(difficulty):
     - "solution_sql": the exact correct SQL query to solve the problem
     """
     response = client.models.generate_content(
-        model='gemini-1.5-flash',
+        model='gemini-2.5-flash',
         contents=prompt,
     )
     # Clean output if necessary
@@ -72,7 +72,7 @@ def generate_python_problem(difficulty):
     - "expected_output": the exact stdout text expected when the solution is executed
     """
     response = client.models.generate_content(
-        model='gemini-1.5-flash',
+        model='gemini-2.5-flash',
         contents=prompt,
     )
     text = response.text.strip().removeprefix("```json").removesuffix("```").strip()
