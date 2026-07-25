@@ -15,9 +15,12 @@ st.set_page_config(page_title="Dynamic AI Code Practice", page_icon="⚡", layou
 # Replace your key definition with this line:
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 
-@st.cache_resource
-def get_client():
-    return genai.Client(api_key=GEMINI_API_KEY)
+# Initialize the Gemini client
+client = genai.Client(api_key=GEMINI_API_KEY)
+
+# @st.cache_resource
+# def get_client():
+#     return genai.Client(api_key=GEMINI_API_KEY)
 
 # ==============================================================================
 # UI NAVIGATION
