@@ -18,9 +18,9 @@ GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 # Initialize the Gemini client
 client = genai.Client(api_key=GEMINI_API_KEY)
 
-@st.cache_resource
-def get_client():
-    return genai.Client(api_key=GEMINI_API_KEY)
+# @st.cache_resource
+# def get_client():
+#     return genai.Client(api_key=GEMINI_API_KEY)
 
 # ==============================================================================
 # UI NAVIGATION
@@ -60,7 +60,7 @@ def generate_sql_problem(difficulty):
     return json.loads(text)
 
 def generate_python_problem(difficulty):
-    client = get_client()
+    # client = get_client()
     prompt = f"""
     Generate a unique Python coding challenge at {difficulty} level.
     Return ONLY a raw JSON object with NO markdown code block formatting.
