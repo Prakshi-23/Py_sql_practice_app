@@ -154,65 +154,65 @@ if track == "🗄️ SQL Database Practice":
     # Get Expected Solution Result
     expected_df = pd.read_sql_query(problem["solution_sql"], conn)
 
-    col1, col2 = st.columns([1, 1])
-    with col1:
+    left, right = st.columns([1, 1])
+
+    with left:
         st.subheader(f"📌 {problem['title']} ({level})")
         st.markdown(problem['description'])
 
-    with col2:
-        st.subheader("📊 Generated Sample Tables")
+        st.markdown("**📊 Sample Tables**")
         for table in problem["tables_to_show"]:
             st.caption(f"Table: `{table}`")
             st.dataframe(pd.read_sql_query(f"SELECT * FROM {table}", conn), hide_index=True, use_container_width=True)
 
-    if st.button("💡 Hint"):
-        st.session_state.sql_show_hint = True
-    if st.session_state.get("sql_show_hint"):
-        st.info(f"**Hint:** {problem.get('hint', 'Think about which SQL clause filters or aggregates the rows you need.')}")
+        if st.button("💡 Hint"):
+            st.session_state.sql_show_hint = True
+        if st.session_state.get("sql_show_hint"):
+            st.info(f"**Hint:** {problem.get('hint', 'Think about which SQL clause filters or aggregates the rows you need.')}")
 
-    st.divider()
-    st.subheader("📝 Your SQL Solution")
-    user_query = st_ace(
-        value="SELECT * FROM ...",
-        language="sql",
-        theme="dracula",
-        font_size=15,
-        tab_size=4,
-        show_gutter=True,       # line numbers
-        show_print_margin=False,
-        wrap=False,
-        auto_update=True,      # only re-run on blur / Ctrl+Enter, not every keystroke
-        min_lines=10,
-        key=f"sql_editor_{st.session_state.get('sql_problem_id', 0)}",
-    )
+    with right:
+        st.markdown("**📝 Your SQL Solution**")
+        user_query = st_ace(
+            value="SELECT * FROM ...",
+            language="sql",
+            theme="dracula",
+            font_size=15,
+            tab_size=4,
+            show_gutter=True,       # line numbers
+            show_print_margin=False,
+            wrap=False,
+            auto_update=True,       # live-updates as you type; removes the Apply button
+            min_lines=14,
+            key=f"sql_editor_{st.session_state.get('sql_problem_id', 0)}",
+        )
 
-    run_col, submit_col = st.columns(2)
-    with run_col:
-        run_clicked = st.button("▶️ Run", use_container_width=True)
-    with submit_col:
-        submit_clicked = st.button("✅ Submit", type="primary", use_container_width=True)
+        run_col, submit_col = st.columns(2)
+        with run_col:
+            run_clicked = st.button("▶️ Run", use_container_width=True)
+        with submit_col:
+            submit_clicked = st.button("✅ Submit", type="primary", use_container_width=True)
 
-    if run_clicked:
-        try:
-            user_df = pd.read_sql_query(user_query, conn)
-            st.write("**Query Output:**")
-            st.dataframe(user_df, hide_index=True)
-        except Exception as e:
-            st.error(f"SQL Error: {e}")
+        if run_clicked:
+            try:
+                user_df = pd.read_sql_query(user_query, conn)
+                st.write("**Query Output:**")
+                st.dataframe(user_df, hide_index=True)
+            except Exception as e:
+                st.error(f"SQL Error: {e}")
 
-    if submit_clicked:
-        try:
-            user_df = pd.read_sql_query(user_query, conn)
-            st.write("**Your Query Output:**")
-            st.dataframe(user_df, hide_index=True)
+        if submit_clicked:
+            try:
+                user_df = pd.read_sql_query(user_query, conn)
+                st.write("**Your Query Output:**")
+                st.dataframe(user_df, hide_index=True)
 
-            if user_df.equals(expected_df):
-                st.balloons()
-                st.success("🎉 Correct! Your query returned the exact expected dataset.")
-            else:
-                st.error("❌ Output mismatch. Try revising your query.")
-        except Exception as e:
-            st.error(f"SQL Error: {e}")
+                if user_df.equals(expected_df):
+                    st.balloons()
+                    st.success("🎉 Correct! Your query returned the exact expected dataset.")
+                else:
+                    st.error("❌ Output mismatch. Try revising your query.")
+            except Exception as e:
+                st.error(f"SQL Error: {e}")
 
 # ==============================================================================
 # PYTHON ENGINE
@@ -226,70 +226,73 @@ else:
 
     problem = st.session_state.py_problem
 
-    st.subheader(f"📌 {problem['title']} ({level})")
-    st.markdown(problem['description'])
+    left, right = st.columns([1, 1])
 
-    if problem.get("example"):
-        st.caption("💭 Example (for illustration only — uses different data than your actual task):")
-        st.code(problem["example"], language="text")
+    with left:
+        st.subheader(f"📌 {problem['title']} ({level})")
+        st.markdown(problem['description'])
 
-    if st.button("💡 Hint"):
-        st.session_state.py_show_hint = True
-    if st.session_state.get("py_show_hint"):
-        st.info(f"**Hint:** {problem.get('hint', 'Break the problem into small steps and print as you go.')}")
+        if problem.get("example"):
+            st.caption("💭 Example (for illustration only — uses different data than your actual task):")
+            st.code(problem["example"], language="text")
 
-    st.divider()
-    st.write("**Your Python Code:**")
-    user_code = st_ace(
-        value=problem["starter_code"],
-        language="python",
-        theme="dracula",
-        font_size=15,
-        tab_size=4,
-        show_gutter=True,       # line numbers
-        show_print_margin=False,
-        wrap=False,
-        auto_update=True,      # only re-run on blur / Ctrl+Enter, not every keystroke
-        min_lines=12,
-        key=f"py_editor_{st.session_state.get('py_problem_id', 0)}",
-    )
+        if st.button("💡 Hint"):
+            st.session_state.py_show_hint = True
+        if st.session_state.get("py_show_hint"):
+            st.info(f"**Hint:** {problem.get('hint', 'Break the problem into small steps and print as you go.')}")
 
-    run_col, submit_col = st.columns(2)
-    with run_col:
-        run_clicked = st.button("▶️ Run", use_container_width=True)
-    with submit_col:
-        submit_clicked = st.button("✅ Submit", type="primary", use_container_width=True)
+    with right:
+        st.markdown("**Your Python Code:**")
+        user_code = st_ace(
+            value=problem["starter_code"],
+            language="python",
+            theme="dracula",
+            font_size=15,
+            tab_size=4,
+            show_gutter=True,       # line numbers
+            show_print_margin=False,
+            wrap=False,
+            auto_update=True,       # live-updates as you type; removes the Apply button
+            min_lines=14,
+            key=f"py_editor_{st.session_state.get('py_problem_id', 0)}",
+        )
 
-    if run_clicked:
-        buffer = io.StringIO()
-        sys.stdout = buffer
-        try:
-            exec(user_code)
-            output = buffer.getvalue()
-            st.write("**Output:**")
-            st.code(output if output else "[No Output]")
-        except Exception as e:
-            st.error(f"Runtime Error: {e}")
-        finally:
-            sys.stdout = sys.__stdout__
+        run_col, submit_col = st.columns(2)
+        with run_col:
+            run_clicked = st.button("▶️ Run", use_container_width=True)
+        with submit_col:
+            submit_clicked = st.button("✅ Submit", type="primary", use_container_width=True)
 
-    if submit_clicked:
-        buffer = io.StringIO()
-        sys.stdout = buffer
-        try:
-            exec(user_code)
-            output = buffer.getvalue()
-
-            if output == problem["expected_output"]:
-                st.balloons()
-                st.success("🎉 Correct! Output matches expected result.")
-            else:
-                st.error("❌ Output mismatch.")
-                st.write("**Your Output:**")
+        if run_clicked:
+            buffer = io.StringIO()
+            sys.stdout = buffer
+            try:
+                exec(user_code)
+                output = buffer.getvalue()
+                st.write("**Output:**")
                 st.code(output if output else "[No Output]")
-                st.write("**Expected Output:**")
-                st.code(problem["expected_output"])
-        except Exception as e:
-            st.error(f"Runtime Error: {e}")
-        finally:
-            sys.stdout = sys.__stdout__
+            except Exception as e:
+                st.error(f"Runtime Error: {e}")
+            finally:
+                sys.stdout = sys.__stdout__
+
+        if submit_clicked:
+            buffer = io.StringIO()
+            sys.stdout = buffer
+            try:
+                exec(user_code)
+                output = buffer.getvalue()
+
+                if output == problem["expected_output"]:
+                    st.balloons()
+                    st.success("🎉 Correct! Output matches expected result.")
+                else:
+                    st.error("❌ Output mismatch.")
+                    st.write("**Your Output:**")
+                    st.code(output if output else "[No Output]")
+                    st.write("**Expected Output:**")
+                    st.code(problem["expected_output"])
+            except Exception as e:
+                st.error(f"Runtime Error: {e}")
+            finally:
+                sys.stdout = sys.__stdout__
