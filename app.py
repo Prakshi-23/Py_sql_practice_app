@@ -148,10 +148,19 @@ def generate_python_problem(difficulty):
     Difficulty guidance: {DIFFICULTY_GUIDANCE[difficulty]}
     Return ONLY a raw JSON object with NO markdown code block formatting.
 
+    IMPORTANT constraint on "starter_code": this code will be executed automatically
+    with NO real stdin available, so it must NEVER call input(), sys.stdin.read(),
+    sys.stdin.readline(), or any other function that waits for user input — doing so
+    would hang forever. Instead, hardcode the sample data directly as Python
+    variables/lists/dicts inside the starter code (e.g. `text = "the quick brown
+    fox"` instead of reading it from input), and have the user complete the logic
+    that operates on that hardcoded data and prints the result.
+
     The JSON must contain exact keys:
     - "title": short problem title
     - "description": clear task instructions
-    - "starter_code": template code for the user
+    - "starter_code": template code for the user, with hardcoded sample data as
+      described above — no input()/stdin reads of any kind
     - "expected_output": the exact stdout text expected when the solution is executed
     - "example": a SHORT worked example (1-2 sentences) that illustrates the general
       idea behind the task using DIFFERENT sample data/numbers than the actual
@@ -303,6 +312,21 @@ else:
             key=f"py_editor_{st.session_state.get('py_problem_id', 0)}",
         )
 
+        def run_user_code(code):
+            """Execute user code with stdout captured and stdin blocked (empty).
+            If the code tries to read input (input()/sys.stdin.read()), it fails
+            immediately with EOFError instead of hanging forever waiting for
+            input that will never arrive in this app."""
+            buffer = io.StringIO()
+            old_stdout, old_stdin = sys.stdout, sys.stdin
+            sys.stdout = buffer
+            sys.stdin = io.StringIO("")  # empty stdin -> input() raises EOFError immediately
+            try:
+                exec(code)
+                return buffer.getvalue()
+            finally:
+                sys.stdout, sys.stdin = old_stdout, old_stdin
+
         run_col, submit_col = st.columns(2)
         with run_col:
             run_clicked = st.button("▶️ Run", use_container_width=True)
@@ -310,24 +334,18 @@ else:
             submit_clicked = st.button("✅ Submit", type="primary", use_container_width=True)
 
         if run_clicked:
-            buffer = io.StringIO()
-            sys.stdout = buffer
             try:
-                exec(user_code)
-                output = buffer.getvalue()
+                output = run_user_code(user_code)
                 st.write("**Output:**")
                 st.code(output if output else "[No Output]")
+            except EOFError:
+                st.error("⚠️ Your code tried to read input, but this app runs code with no live input available. Use the hardcoded sample data in the starter code instead of input()/sys.stdin.")
             except Exception as e:
                 st.error(f"Runtime Error: {e}")
-            finally:
-                sys.stdout = sys.__stdout__
 
         if submit_clicked:
-            buffer = io.StringIO()
-            sys.stdout = buffer
             try:
-                exec(user_code)
-                output = buffer.getvalue()
+                output = run_user_code(user_code)
 
                 if output == problem["expected_output"]:
                     st.balloons()
@@ -338,7 +356,7 @@ else:
                     st.code(output if output else "[No Output]")
                     st.write("**Expected Output:**")
                     st.code(problem["expected_output"])
+            except EOFError:
+                st.error("⚠️ Your code tried to read input, but this app runs code with no live input available. Use the hardcoded sample data in the starter code instead of input()/sys.stdin.")
             except Exception as e:
                 st.error(f"Runtime Error: {e}")
-            finally:
-                sys.stdout = sys.__stdout__
