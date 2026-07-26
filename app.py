@@ -108,6 +108,23 @@ def _call_groq(prompt):
     )
     return response.choices[0].message.content
 
+def _fix_double_escaping(obj):
+    """Some models double-escape control characters inside JSON string values —
+    e.g. the string literally contains a backslash followed by 'n' instead of an
+    actual newline. json.loads() can't fix this (it's valid JSON, just poorly
+    authored), so we clean it up ourselves after parsing."""
+    if isinstance(obj, str):
+        return (
+            obj.replace("\\n", "\n")
+               .replace("\\t", "\t")
+               .replace('\\"', '"')
+        )
+    if isinstance(obj, dict):
+        return {k: _fix_double_escaping(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_fix_double_escaping(v) for v in obj]
+    return obj
+
 
 def _parse_json_response(text):
     """Strip any accidental markdown fences and parse the JSON payload."""
@@ -119,8 +136,8 @@ def _parse_json_response(text):
     start, end = cleaned.find("{"), cleaned.rfind("}")
     if start != -1 and end != -1:
         cleaned = cleaned[start:end + 1]
-    return json.loads(cleaned)
-
+    parsed = json.loads(cleaned)
+    return _fix_double_escaping(parsed)
 
 def generate_sql_problem(difficulty):
     prompt = f"""
