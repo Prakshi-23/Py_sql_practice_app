@@ -364,7 +364,7 @@ else:
             try:
                 output = run_user_code(user_code)
 
-                if output == problem["expected_output"]:
+                if output.strip() == problem["expected_output"].strip():
                     st.balloons()
                     st.success("🎉 Correct! Output matches expected result.")
                 else:
