@@ -5,7 +5,6 @@ import json
 import io
 import sys
 from google import genai
-from streamlit_ace import st_ace
 
 st.set_page_config(page_title="Dynamic AI Code Practice", page_icon="⚡", layout="wide")
 
@@ -15,7 +14,12 @@ st.set_page_config(page_title="Dynamic AI Code Practice", page_icon="⚡", layou
 st.markdown(
     """
     <style>
-    /* st.code blocks (output panes) */
+    /* Code editor text areas */
+    textarea, .stTextArea textarea {
+        font-family: 'Cascadia Code', Consolas, 'Courier New', monospace !important;
+        font-size: 15px !important;
+    }
+    /* st.code blocks */
     code, pre, .stCode, .stCode code, .stCode pre {
         font-family: 'Cascadia Code', Consolas, 'Courier New', monospace !important;
     }
@@ -23,10 +27,6 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
-
-# Shared font stack for the Ace code editor (line numbers + syntax highlighting +
-# auto-indent, like HackerRank/LeetCode). Ace uses the first installed font it finds.
-EDITOR_FONT = "Cascadia Code, Consolas, 'Courier New', monospace"
 
 # ==============================================================================
 # API SETUP
@@ -141,7 +141,6 @@ if track == "🗄️ SQL Database Practice":
         with st.spinner("Creating custom database and dynamic scenario..."):
             st.session_state.sql_problem = generate_sql_problem(level)
             st.session_state.sql_show_hint = False
-            st.session_state.sql_problem_id = st.session_state.get("sql_problem_id", 0) + 1
 
     problem = st.session_state.sql_problem
 
@@ -172,19 +171,7 @@ if track == "🗄️ SQL Database Practice":
 
     st.divider()
     st.subheader("📝 Your SQL Solution")
-    user_query = st_ace(
-        value="SELECT * FROM ...",
-        language="sql",
-        theme="dracula",
-        font_size=15,
-        tab_size=4,
-        show_gutter=True,       # line numbers
-        show_print_margin=False,
-        wrap=False,
-        auto_update=False,      # only re-run on blur / Ctrl+Enter, not every keystroke
-        min_lines=10,
-        key=f"sql_editor_{st.session_state.get('sql_problem_id', 0)}",
-    )
+    user_query = st.text_area("Write SQL Query:", value="SELECT * FROM ...", height=140)
 
     run_col, submit_col = st.columns(2)
     with run_col:
@@ -222,7 +209,6 @@ else:
         with st.spinner("Building fresh Python challenge..."):
             st.session_state.py_problem = generate_python_problem(level)
             st.session_state.py_show_hint = False
-            st.session_state.py_problem_id = st.session_state.get("py_problem_id", 0) + 1
 
     problem = st.session_state.py_problem
 
@@ -239,20 +225,7 @@ else:
         st.info(f"**Hint:** {problem.get('hint', 'Break the problem into small steps and print as you go.')}")
 
     st.divider()
-    st.write("**Your Python Code:**")
-    user_code = st_ace(
-        value=problem["starter_code"],
-        language="python",
-        theme="dracula",
-        font_size=15,
-        tab_size=4,
-        show_gutter=True,       # line numbers
-        show_print_margin=False,
-        wrap=False,
-        auto_update=False,      # only re-run on blur / Ctrl+Enter, not every keystroke
-        min_lines=12,
-        key=f"py_editor_{st.session_state.get('py_problem_id', 0)}",
-    )
+    user_code = st.text_area("Your Python Code:", value=problem["starter_code"], height=180)
 
     run_col, submit_col = st.columns(2)
     with run_col:
