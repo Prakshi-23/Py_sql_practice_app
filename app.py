@@ -108,6 +108,7 @@ def _call_groq(prompt):
     )
     return response.choices[0].message.content
 
+
 def _fix_double_escaping(obj):
     """Some models double-escape control characters inside JSON string values —
     e.g. the string literally contains a backslash followed by 'n' instead of an
@@ -139,6 +140,7 @@ def _parse_json_response(text):
     parsed = json.loads(cleaned)
     return _fix_double_escaping(parsed)
 
+
 def generate_sql_problem(difficulty):
     prompt = f"""
     Generate a unique, creative, and realistic SQL practice question at {difficulty} level.
@@ -165,20 +167,25 @@ def generate_python_problem(difficulty):
     Difficulty guidance: {DIFFICULTY_GUIDANCE[difficulty]}
     Return ONLY a raw JSON object with NO markdown code block formatting.
 
-    IMPORTANT constraint on "starter_code": this code will be executed automatically
-    with NO real stdin available, so it must NEVER call input(), sys.stdin.read(),
-    sys.stdin.readline(), or any other function that waits for user input — doing so
-    would hang forever. Instead, hardcode the sample data directly as Python
-    variables/lists/dicts inside the starter code (e.g. `text = "the quick brown
-    fox"` instead of reading it from input), and have the user complete the logic
-    that operates on that hardcoded data and prints the result.
+    IMPORTANT constraint on "starter_code" AND "solution_code": both will be executed
+    automatically with NO real stdin available, so neither must ever call input(),
+    sys.stdin.read(), sys.stdin.readline(), or any other function that waits for
+    user input — doing so would hang forever. Instead, hardcode the sample data
+    directly as Python variables/lists/dicts (e.g. `text = "the quick brown fox"`
+    instead of reading it from input). "solution_code" MUST use the exact same
+    hardcoded sample data/variable names as "starter_code" — it's the same
+    program, just with the logic already filled in correctly.
 
     The JSON must contain exact keys:
     - "title": short problem title
     - "description": clear task instructions
     - "starter_code": template code for the user, with hardcoded sample data as
-      described above — no input()/stdin reads of any kind
-    - "expected_output": the exact stdout text expected when the solution is executed
+      described above and a TODO where the logic goes — no input()/stdin reads
+    - "solution_code": a complete, correct, runnable solution to the task using
+      the SAME hardcoded sample data as starter_code, ending in print statement(s)
+      that produce the final output. This will be executed to determine the
+      correct expected output — do not also provide a separate written-out
+      expected_output string, since it is derived by running this code.
     - "example": a SHORT worked example (1-2 sentences) that illustrates the general
       idea behind the task using DIFFERENT sample data/numbers than the actual
       question uses. For instance if the task is about filtering a list of words by
@@ -363,17 +370,32 @@ else:
         if submit_clicked:
             try:
                 output = run_user_code(user_code)
-
-                if output.strip() == problem["expected_output"].strip():
-                    st.balloons()
-                    st.success("🎉 Correct! Output matches expected result.")
-                else:
-                    st.error("❌ Output mismatch.")
-                    st.write("**Your Output:**")
-                    st.code(output if output else "[No Output]")
-                    st.write("**Expected Output:**")
-                    st.code(problem["expected_output"])
             except EOFError:
                 st.error("⚠️ Your code tried to read input, but this app runs code with no live input available. Use the hardcoded sample data in the starter code instead of input()/sys.stdin.")
+                output = None
             except Exception as e:
                 st.error(f"Runtime Error: {e}")
+                output = None
+
+            if output is not None:
+                try:
+                    expected_output = run_user_code(problem["solution_code"])
+                except Exception as e:
+                    # The AI's own reference solution failed to run — that's a
+                    # generation issue, not something the user did wrong.
+                    st.error(
+                        "⚠️ This question's reference solution failed to run "
+                        f"({e}). Please generate a new problem — this one has a bug."
+                    )
+                    expected_output = None
+
+                if expected_output is not None:
+                    if output.strip() == expected_output.strip():
+                        st.balloons()
+                        st.success("🎉 Correct! Output matches expected result.")
+                    else:
+                        st.error("❌ Output mismatch.")
+                        st.write("**Your Output:**")
+                        st.code(output if output else "[No Output]")
+                        st.write("**Expected Output:**")
+                        st.code(expected_output if expected_output else "[No Output]")
