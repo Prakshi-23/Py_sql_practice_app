@@ -181,7 +181,7 @@ if track == "🗄️ SQL Database Practice":
         show_gutter=True,       # line numbers
         show_print_margin=False,
         wrap=False,
-        auto_update=False,      # only re-run on blur / Ctrl+Enter, not every keystroke
+        auto_update=True,      # only re-run on blur / Ctrl+Enter, not every keystroke
         min_lines=10,
         key=f"sql_editor_{st.session_state.get('sql_problem_id', 0)}",
     )
@@ -249,7 +249,7 @@ else:
         show_gutter=True,       # line numbers
         show_print_margin=False,
         wrap=False,
-        auto_update=False,      # only re-run on blur / Ctrl+Enter, not every keystroke
+        auto_update=True,      # only re-run on blur / Ctrl+Enter, not every keystroke
         min_lines=12,
         key=f"py_editor_{st.session_state.get('py_problem_id', 0)}",
     )
