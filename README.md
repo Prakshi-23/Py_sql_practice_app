@@ -16,7 +16,7 @@ An AI-powered coding practice platform built with **Streamlit** that generates u
 4. Add the following:
 
 ```toml
-GROQ_API_KEY = ["YOUR_GROQ_API_KEY"]
+GROQ_API_KEY = "YOUR_GROQ_API_KEY"
 ```
 
 5. Save the changes.
