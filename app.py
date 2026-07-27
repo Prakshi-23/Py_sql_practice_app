@@ -60,31 +60,74 @@ st.divider()
 # ==============================================================================
 # DIFFICULTY GUIDANCE FOR AI PROMPTS
 # ==============================================================================
-DIFFICULTY_GUIDANCE = {
+SQL_DIFFICULTY_GUIDANCE = {
     "Easy": (
-        "Very simple, single-concept task with only ONE thing to do — no combined "
-        "conditions and no multi-step logic. Should be solvable in a single short "
-        "query / a few lines of code. Good examples of the right complexity: "
-        "'find all employees whose name starts with S', 'find words in a list that "
-        "are longer than 4 letters', 'write a function that returns the square and "
-        "cube of a number'. Do NOT combine two conditions (e.g. do NOT ask something "
-        "like 'find the highest salary among employees whose name starts with S' — "
-        "that mixes two ideas and is too hard for this level)."
+        "Very simple, single-concept query with only ONE thing to do — no combined "
+        "conditions, no joins, no aggregation. Should be solvable with a single "
+        "short SELECT. Good example: 'find all employees whose name starts with S'. "
+        "Do NOT combine two conditions (e.g. do NOT ask 'find the highest salary "
+        "among employees whose name starts with S' — that mixes two ideas and is "
+        "too hard for this level)."
     ),
     "Basic": (
-        "Simple task that may combine up to two small conditions or steps, still "
-        "clearly beginner-friendly."
+        "Simple query that may combine up to two small conditions (e.g. a WHERE "
+        "clause plus a simple aggregate like COUNT/AVG on one table), still clearly "
+        "beginner-friendly. No joins yet."
     ),
     "Intermediate": (
-        "Requires combining multiple conditions, joins (for SQL), or a few chained "
-        "steps of logic (for Python)."
+        "Requires combining multiple conditions, a JOIN across two tables, or "
+        "GROUP BY with a HAVING clause."
     ),
     "Advanced": (
-        "Complex, realistic, multi-step problem requiring careful reasoning — "
-        "possibly multiple joins/subqueries (SQL) or several combined operations "
-        "and edge cases (Python)."
+        "Complex, realistic, multi-step query requiring careful reasoning — "
+        "multiple joins, subqueries, window functions, or nested aggregations."
     ),
 }
+
+PYTHON_DIFFICULTY_GUIDANCE = {
+    "Easy": (
+        "Very simple, single-concept task with only ONE thing to do — no combined "
+        "conditions and no multi-step logic. Should be solvable in a few lines. "
+        "Good examples: 'find words in a list longer than 4 letters', 'write a "
+        "function that returns the square and cube of a number'. Do NOT combine "
+        "multiple conditions or steps — too hard for this level."
+    ),
+    "Basic": (
+        "Simple task that may combine up to two small steps (e.g. filter a list "
+        "AND transform it), still clearly beginner-friendly. One core concept at "
+        "a time — e.g. loops, conditionals, basic string/list methods."
+    ),
+    "Intermediate": (
+        "Requires chaining a few steps of logic, or applying a single meatier "
+        "Python concept — e.g. recursion, dictionaries/sets for counting or "
+        "grouping, sorting with a custom key, basic OOP (a class with a couple of "
+        "methods), string parsing, or list/dict comprehensions."
+    ),
+    "Advanced": (
+        "A more involved algorithmic or design problem — e.g. a small algorithm "
+        "(searching, backtracking, dynamic programming basics), decorators, "
+        "generators, working with multiple classes/inheritance, or a multi-step "
+        "data-processing pipeline over a SINGLE structure (one list/dict), with "
+        "edge cases to handle."
+    ),
+}
+
+# IMPORTANT: keep Python problems distinctly Python-flavored, not SQL-in-disguise.
+# Since this app has a separate SQL track, Python questions should NOT simulate
+# relational-database logic — no joining two or more separate lists of records by
+# a shared id/foreign key and aggregating across them (e.g. "employees" joined
+# with "projects"/"orders" tables). That pattern belongs in the SQL track. Python
+# questions should instead exercise Python-native concepts: string/list/dict
+# manipulation, recursion, comprehensions, sorting, basic OOP, algorithms,
+# generators/decorators, working with a SINGLE collection of data (not multiple
+# linked collections simulating tables).
+PYTHON_DOMAIN_GUIDANCE = (
+    "Do NOT write a problem that simulates a relational database (e.g. two or "
+    "more lists of dicts linked by an id/foreign key that must be joined and "
+    "aggregated together, like employees + projects/orders/departments). That "
+    "kind of join-and-aggregate problem belongs to this app's separate SQL track, "
+    "not Python — write something using Python-native concepts instead."
+)
 
 # ==============================================================================
 # AI GENERATION LOGIC
@@ -144,7 +187,7 @@ def _parse_json_response(text):
 def generate_sql_problem(difficulty):
     prompt = f"""
     Generate a unique, creative, and realistic SQL practice question at {difficulty} level.
-    Difficulty guidance: {DIFFICULTY_GUIDANCE[difficulty]}
+    Difficulty guidance: {SQL_DIFFICULTY_GUIDANCE[difficulty]}
     Return ONLY a raw JSON object with NO markdown code block formatting (no ```json wrapper).
 
     The JSON must contain exact keys:
@@ -164,8 +207,10 @@ def generate_sql_problem(difficulty):
 def generate_python_problem(difficulty):
     prompt = f"""
     Generate a unique Python coding challenge at {difficulty} level.
-    Difficulty guidance: {DIFFICULTY_GUIDANCE[difficulty]}
+    Difficulty guidance: {PYTHON_DIFFICULTY_GUIDANCE[difficulty]}
     Return ONLY a raw JSON object with NO markdown code block formatting.
+
+    {PYTHON_DOMAIN_GUIDANCE}
 
     IMPORTANT constraint on "starter_code" AND "solution_code": both will be executed
     automatically with NO real stdin available, so neither must ever call input(),
