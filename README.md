@@ -1,87 +1,149 @@
-# 🐍 PySQL Practice App
+# ⚡ AI-Powered Python & SQL Practice App
 
-An interactive desktop application built with **Python** that helps users practice both **Python** and **SQL** concepts through quizzes, coding questions, and database exercises. The application is designed for students, beginners, and job seekers preparing for technical interviews and improving their programming skills.
+An AI-powered coding practice platform built with **Streamlit** that generates unique **Python** and **SQL** challenges on demand using the **Groq API**. The application provides an interactive coding environment where users can solve dynamically generated problems, execute their solutions, receive hints, and instantly validate their answers.
 
-## 📌 Features
+## 🚀 Live Demo
 
-- 🐍 Python practice questions
-- 🗄️ SQL practice questions
-- 📝 Multiple-choice and coding-based exercises
-- ✅ Instant answer validation
-- 📊 Score tracking
-- 🎯 Beginner-friendly interface
-- 💻 Desktop GUI application
-- 📚 Helps in interview preparation
+### 🌐 https://pysql-practice-app-pkv1.streamlit.app/
 
-## 🛠️ Tech Stack
+> **Note:** The app requires a **Groq API Key** to generate coding challenges.
+
+### Configure the API Key
+
+1. Open your deployed Streamlit app.
+2. Click **Manage App**.
+3. Go to **Settings → Secrets**.
+4. Add the following:
+
+```toml
+GROQ_API_KEY = ["YOUR_GROQ_API_KEY"]
+```
+
+5. Save the changes.
+6. Refresh the application.
+
+The app will now generate Python and SQL practice questions successfully.
+
+You can get a free API key from:
+https://console.groq.com/keys
+
+---
+
+# ✨ Features
+
+## 🐍 Python Practice
+
+- AI-generated Python coding challenges
+- Four difficulty levels
+  - Easy
+  - Basic
+  - Intermediate
+  - Advanced
+- Built-in code editor
+- Run code instantly
+- Output comparison with the expected solution
+- Helpful hints
+- Automatic solution validation
+
+## 🗄️ SQL Practice
+
+- AI-generated SQL interview questions
+- Dynamic SQLite databases created for every question
+- Sample tables displayed automatically
+- Interactive SQL editor
+- Execute SQL queries
+- Compare query output with the expected result
+- Hints for solving problems
+
+## 🎯 Additional Features
+
+- Dynamic question generation using Groq LLM
+- New unique questions every time
+- Beautiful Streamlit interface
+- Syntax-highlighted Ace editor
+- Instant feedback
+- Beginner to advanced difficulty levels
+- No local database setup required
+
+---
+
+# 🛠️ Tech Stack
 
 - Python
-- CustomTkinter / Tkinter
+- Streamlit
+- Groq API
 - SQLite
-- Object-Oriented Programming (OOP)
+- Pandas
+- Streamlit Ace Editor
 
-## 📂 Project Structure
+---
 
-```
-Py_sql_practice_app/
-│
-├── assets/
-├── database/
-├── questions/
-├── main.py
-├── requirements.txt
-└── README.md
-```
+# 📦 Installation
 
-*(Folder names may vary depending on your repository.)*
-
-## 🚀 Installation
-
-### 1. Clone the repository
+Clone the repository
 
 ```bash
 git clone https://github.com/Prakshi-23/Py_sql_practice_app.git
 ```
 
-### 2. Navigate to the project
+Move into the project
 
 ```bash
 cd Py_sql_practice_app
 ```
 
-### 3. Install dependencies
+Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Run the application
+Create Streamlit secrets
 
-```bash
-python main.py
+```toml
+GROQ_API_KEY = "YOUR_GROQ_API_KEY"
 ```
 
-## 🎯 Purpose
+Run the application
 
-This application was developed to provide a hands-on platform for practicing Python and SQL concepts in a structured and interactive manner. It allows learners to strengthen their problem-solving skills while preparing for technical interviews and assessments.
-
-## 📈 Future Enhancements
-
-- Difficulty levels (Easy, Medium, Hard)
-- Timed quiz mode
-- User login system
-- Leaderboard
-- Explanation for each answer
-- More question categories
-- Progress analytics
-- Export score reports
-
-## 👩‍💻 Author
-
-**Prakshi K**
-
-GitHub: https://github.com/Prakshi-23
+```bash
+streamlit run app.py
+```
 
 ---
 
-⭐ If you found this project useful, consider giving it a star!
+# 📂 Project Highlights
+
+- AI-generated coding problems
+- Automatic SQLite database generation
+- Real-time Python execution
+- SQL query validation
+- Interactive code editor
+- Difficulty-based question generation
+- Instant feedback and hints
+
+---
+
+# 📌 Future Enhancements
+
+- User authentication
+- Progress tracking
+- Scoreboard
+- Saved coding history
+- Additional programming languages
+- Interview mode
+- Timed challenges
+- Question bookmarking
+
+---
+
+# 👩‍💻 Author
+
+**Prakshi K**
+
+GitHub:
+https://github.com/Prakshi-23
+
+---
+
+⭐ If you like this project, consider giving it a Star!
