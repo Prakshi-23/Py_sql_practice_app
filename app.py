@@ -195,15 +195,23 @@ def generate_sql_problem(difficulty):
     column names. So:
     - Prefer NOT aliasing result columns unless there's a good reason to (e.g. plain
       `SELECT COUNT(*) FROM ...` rather than `SELECT COUNT(*) AS some_alias FROM ...`).
-    - If you DO alias a result column (e.g. `AS recent_order_count`, `AS total_sales`),
-      the "description" MUST explicitly tell the user the exact required output
-      column name(s) to use, e.g. "Name the result column 'recent_order_count'."
-      Do not leave the user to guess an alias.
+    - If solution_sql has NO explicit "AS" alias on a column, do NOT mention any
+      expected column name in the description at all — do not say things like
+      "the result should be named COUNT(*)". An un-aliased column's raw expression
+      (e.g. "COUNT(*)") is just SQLite's automatic default, not something the user
+      chose or needs to replicate deliberately, so calling it out is confusing noise.
+    - ONLY if you deliberately give a column a custom "AS" alias (e.g.
+      `AS recent_order_count`, `AS total_sales`) — a real word/name, not the raw
+      expression — must the "description" explicitly tell the user that exact
+      required output column name, e.g. "Name the result column
+      'recent_order_count'." Do not leave the user to guess a custom alias.
 
     The JSON must contain exact keys:
     - "title": short problem title
-    - "description": clear task instructions. If solution_sql uses any column
-      alias(es), explicitly state the exact expected output column name(s) here.
+    - "description": clear task instructions. Only mention an expected output
+      column name if solution_sql uses a deliberate custom "AS" alias — never
+      mention a default/un-aliased expression like "COUNT(*)" as if it were a
+      required name.
     - "setup_sql": complete SQLite CREATE TABLE and INSERT statements with realistic
       sample data (1 simple table for Easy/Basic, 2-3 tables for Intermediate/Advanced)
     - "tables_to_show": list of table names created
