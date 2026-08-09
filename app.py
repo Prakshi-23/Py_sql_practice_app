@@ -190,9 +190,20 @@ def generate_sql_problem(difficulty):
     Difficulty guidance: {SQL_DIFFICULTY_GUIDANCE[difficulty]}
     Return ONLY a raw JSON object with NO markdown code block formatting (no ```json wrapper).
 
+    IMPORTANT constraint on "solution_sql": the user's query is graded by comparing
+    its output DataFrame to solution_sql's output DataFrame EXACTLY, including
+    column names. So:
+    - Prefer NOT aliasing result columns unless there's a good reason to (e.g. plain
+      `SELECT COUNT(*) FROM ...` rather than `SELECT COUNT(*) AS some_alias FROM ...`).
+    - If you DO alias a result column (e.g. `AS recent_order_count`, `AS total_sales`),
+      the "description" MUST explicitly tell the user the exact required output
+      column name(s) to use, e.g. "Name the result column 'recent_order_count'."
+      Do not leave the user to guess an alias.
+
     The JSON must contain exact keys:
     - "title": short problem title
-    - "description": clear task instructions
+    - "description": clear task instructions. If solution_sql uses any column
+      alias(es), explicitly state the exact expected output column name(s) here.
     - "setup_sql": complete SQLite CREATE TABLE and INSERT statements with realistic
       sample data (1 simple table for Easy/Basic, 2-3 tables for Intermediate/Advanced)
     - "tables_to_show": list of table names created
@@ -339,6 +350,20 @@ if track == "🗄️ SQL Database Practice":
                 if user_df.equals(expected_df):
                     st.balloons()
                     st.success("🎉 Correct! Your query returned the exact expected dataset.")
+                elif (
+                    user_df.shape == expected_df.shape
+                    and list(user_df.columns) != list(expected_df.columns)
+                    and (user_df.values == expected_df.values).all()
+                ):
+                    # Values match exactly, only the column name(s) differ — this is
+                    # a naming/aliasing mismatch, not a logic error. Tell the user
+                    # exactly what column name(s) are expected instead of a generic error.
+                    expected_cols = ", ".join(f"`{c}`" for c in expected_df.columns)
+                    st.warning(
+                        f"🟡 Your data/values are correct, but the expected output "
+                        f"column name(s) are {expected_cols}. Add an alias to your "
+                        f"query, e.g. `AS {expected_df.columns[0]}`, and resubmit."
+                    )
                 else:
                     st.error("❌ Output mismatch. Try revising your query.")
             except Exception as e:
