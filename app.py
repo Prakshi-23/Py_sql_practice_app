@@ -252,6 +252,8 @@ if track == "🗄️ SQL Database Practice":
             try:
                 st.session_state.sql_problem = generate_sql_problem(level)
                 st.session_state.sql_show_hint = False
+                st.session_state.sql_show_solution = False
+                st.session_state.sql_attempts = 0
                 st.session_state.sql_problem_id = st.session_state.get("sql_problem_id", 0) + 1
             except RateLimitError:
                 st.error("⏳ Groq's free-tier rate limit was hit. Wait a minute and try again.")
@@ -282,10 +284,20 @@ if track == "🗄️ SQL Database Practice":
             st.caption(f"Table: `{table}`")
             st.dataframe(pd.read_sql_query(f"SELECT * FROM {table}", conn), hide_index=True, use_container_width=True)
 
-        if st.button("💡 Hint"):
-            st.session_state.sql_show_hint = True
+        hint_col, sol_col = st.columns(2)
+        with hint_col:
+            if st.button("💡 Hint"):
+                st.session_state.sql_show_hint = True
+        with sol_col:
+            if st.session_state.get("sql_attempts", 0) >= 3:
+                if st.button("📖 Solution"):
+                    st.session_state.sql_show_solution = True
+
         if st.session_state.get("sql_show_hint"):
             st.info(f"**Hint:** {problem.get('hint', 'Think about which SQL clause filters or aggregates the rows you need.')}")
+        if st.session_state.get("sql_show_solution"):
+            st.markdown("**📖 Solution:**")
+            st.code(problem["solution_sql"], language="sql")
 
     with right:
         st.markdown("**📝 Your SQL Solution**")
@@ -318,6 +330,7 @@ if track == "🗄️ SQL Database Practice":
                 st.error(f"SQL Error: {e}")
 
         if submit_clicked:
+            st.session_state.sql_attempts = st.session_state.get("sql_attempts", 0) + 1
             try:
                 user_df = pd.read_sql_query(user_query, conn)
                 st.write("**Your Query Output:**")
@@ -340,6 +353,8 @@ else:
             try:
                 st.session_state.py_problem = generate_python_problem(level)
                 st.session_state.py_show_hint = False
+                st.session_state.py_show_solution = False
+                st.session_state.py_attempts = 0
                 st.session_state.py_problem_id = st.session_state.get("py_problem_id", 0) + 1
             except RateLimitError:
                 st.error("⏳ Groq's free-tier rate limit was hit. Wait a minute and try again.")
@@ -360,10 +375,20 @@ else:
             st.caption("💭 Example (for illustration only — uses different data than your actual task):")
             st.code(problem["example"], language="text")
 
-        if st.button("💡 Hint"):
-            st.session_state.py_show_hint = True
+        hint_col, sol_col = st.columns(2)
+        with hint_col:
+            if st.button("💡 Hint"):
+                st.session_state.py_show_hint = True
+        with sol_col:
+            if st.session_state.get("py_attempts", 0) >= 3:
+                if st.button("📖 Solution"):
+                    st.session_state.py_show_solution = True
+
         if st.session_state.get("py_show_hint"):
             st.info(f"**Hint:** {problem.get('hint', 'Break the problem into small steps and print as you go.')}")
+        if st.session_state.get("py_show_solution"):
+            st.markdown("**📖 Solution:**")
+            st.code(problem["solution_code"], language="python")
 
     with right:
         st.markdown("**Your Python Code:**")
@@ -413,6 +438,7 @@ else:
                 st.error(f"Runtime Error: {e}")
 
         if submit_clicked:
+            st.session_state.py_attempts = st.session_state.get("py_attempts", 0) + 1
             try:
                 output = run_user_code(user_code)
             except EOFError:
