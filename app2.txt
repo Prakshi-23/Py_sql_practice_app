@@ -67,71 +67,20 @@ SQL_DIFFICULTY_GUIDANCE = {
         "short SELECT. Good example: 'find all employees whose name starts with S'. "
         "Do NOT combine two conditions (e.g. do NOT ask 'find the highest salary "
         "among employees whose name starts with S' — that mixes two ideas and is "
-        "too hard for this level).\n\n"
-        "Pick ONE topic at random from this list to build the question around:\n"
-        "- Plain SELECT / SELECT DISTINCT on one table\n"
-        "- A single WHERE condition (one comparison operator)\n"
-        "- ORDER BY (ascending or descending)\n"
-        "- LIMIT / OFFSET (e.g. 'top 5 rows')\n"
-        "- Column aliasing with AS\n"
-        "- A single AND / OR / NOT condition\n"
-        "- IN or BETWEEN\n"
-        "- LIKE with a wildcard (%, _)\n"
-        "- IS NULL / IS NOT NULL"
+        "too hard for this level)."
     ),
     "Basic": (
         "Simple query that may combine up to two small conditions (e.g. a WHERE "
         "clause plus a simple aggregate like COUNT/AVG on one table), still clearly "
-        "beginner-friendly. No joins yet.\n\n"
-        "Pick ONE topic at random from this list to build the question around "
-        "(combine it with at most one simple WHERE condition if it makes the "
-        "question more realistic):\n"
-        "- CREATE TABLE / ALTER TABLE / constraints (PRIMARY KEY, NOT NULL, "
-        "UNIQUE, DEFAULT, CHECK) — framed as a query-writing task, not raw DDL trivia\n"
-        "- CASE WHEN statements (simple, 2-3 branches)\n"
-        "- INSERT INTO / UPDATE / DELETE on a single table\n"
-        "- Aggregate functions: COUNT, SUM, AVG, MIN, MAX (single table, no JOIN)\n"
-        "- GROUP BY\n"
-        "- HAVING vs WHERE (simple case)\n"
-        "- String functions: CONCAT, SUBSTRING, TRIM, REPLACE, LENGTH\n"
-        "- Date functions: DATEADD/DATE, DATEDIFF, EXTRACT/STRFTIME, current date\n"
-        "- Math functions: ROUND, CEIL, FLOOR, ABS"
+        "beginner-friendly. No joins yet."
     ),
     "Intermediate": (
         "Requires combining multiple conditions, a JOIN across two tables, or "
-        "GROUP BY with a HAVING clause.\n\n"
-        "Pick ONE topic at random from this list to build the question around:\n"
-        "- INNER JOIN across two tables\n"
-        "- LEFT JOIN / RIGHT JOIN (including finding unmatched rows)\n"
-        "- FULL OUTER JOIN or CROSS JOIN\n"
-        "- SELF JOIN\n"
-        "- Multi-table joins (3 tables)\n"
-        "- MERGE / UPSERT logic\n"
-        "- Scalar or nested subqueries (non-correlated)\n"
-        "- EXISTS / NOT EXISTS\n"
-        "- UNION / UNION ALL\n"
-        "- INTERSECT / EXCEPT (or MINUS)\n"
-        "- CREATE VIEW / querying a view (updatable vs non-updatable)\n"
-        "- CTEs with a WITH clause (non-recursive)\n"
-        "- GROUP BY combined with a HAVING clause filtering on an aggregate"
+        "GROUP BY with a HAVING clause."
     ),
     "Advanced": (
         "Complex, realistic, multi-step query requiring careful reasoning — "
-        "multiple joins, subqueries, window functions, or nested aggregations.\n\n"
-        "Pick ONE topic at random from this list to build the question around:\n"
-        "- Correlated subqueries\n"
-        "- Materialized views (or a scenario that mimics one)\n"
-        "- Window functions: ROW_NUMBER, RANK, DENSE_RANK, NTILE with OVER()/PARTITION BY\n"
-        "- Aggregate window functions (running totals, moving averages)\n"
-        "- Offset functions: LAG, LEAD\n"
-        "- Frame clauses: ROWS BETWEEN / RANGE BETWEEN\n"
-        "- Recursive CTEs (e.g. org charts, hierarchical/tree data)\n"
-        "- Stored procedures or functions (scalar / table-valued), written as a "
-        "SQLite-compatible query task since SQLite doesn't support real stored "
-        "procs — simulate the logic in a single complex query instead\n"
-        "- Triggers (framed as 'write the query that achieves what a trigger would')\n"
-        "- Multi-join + subquery + aggregation combined in one realistic business "
-        "scenario (e.g. top N per group, cumulative sales, retention analysis)"
+        "multiple joins, subqueries, window functions, or nested aggregations."
     ),
 }
 
@@ -249,7 +198,7 @@ def generate_sql_problem(difficulty):
     - If solution_sql has NO explicit "AS" alias on a column, do NOT mention any
       expected column name in the description at all — do not say things like
       "the result should be named COUNT(*)". An un-aliased column's raw expression
-      (e.g. "COUNT(*)","count(*)") is just SQLite's automatic default, not something the user
+      (e.g. "COUNT(*)") is just SQLite's automatic default, not something the user
       chose or needs to replicate deliberately, so calling it out is confusing noise.
     - ONLY if you deliberately give a column a custom "AS" alias (e.g.
       `AS recent_order_count`, `AS total_sales`) — a real word/name, not the raw
