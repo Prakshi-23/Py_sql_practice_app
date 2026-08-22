@@ -4,6 +4,7 @@ import pandas as pd
 import json
 import io
 import sys
+import random
 from groq import Groq, RateLimitError
 from streamlit_ace import st_ace
 
@@ -44,123 +45,130 @@ client = Groq(api_key=GROQ_API_KEY)
 # and a healthy free-tier daily limit (30 RPM / 1,000 requests per day).
 GROQ_MODEL = "openai/gpt-oss-120b"
 
-# ==============================================================================
-# UI NAVIGATION
-# ==============================================================================
-st.title("⚡ Dynamic Code Practice (AI Generated)")
 
-col_track, col_diff = st.columns(2)
-with col_track:
-    track = st.selectbox("Select Topic:", ["🗄️ SQL Database Practice", "🐍 Python Practice"])
-with col_diff:
-    level = st.selectbox("Select Difficulty:", ["Easy", "Basic", "Intermediate", "Advanced"])
+def _cols_match_ci(cols_a, cols_b):
+    """SQL identifiers/function names are case-insensitive (SUM(x) and sum(x)
+    are the same thing), so column-name grading should be too — only whitespace
+    and case are normalized away, the actual expression text still must match."""
+    norm = lambda cols: [str(c).strip().lower() for c in cols]
+    return norm(cols_a) == norm(cols_b)
 
-st.divider()
+
+def run_user_code(code):
+    """Execute Python code with stdout captured and stdin blocked (empty).
+    If the code tries to read input (input()/sys.stdin.read()), it fails
+    immediately with EOFError instead of hanging forever waiting for
+    input that will never arrive in this app."""
+    buffer = io.StringIO()
+    old_stdout, old_stdin = sys.stdout, sys.stdin
+    sys.stdout = buffer
+    sys.stdin = io.StringIO("")  # empty stdin -> input() raises EOFError immediately
+    try:
+        exec(code)
+        return buffer.getvalue()
+    finally:
+        sys.stdout, sys.stdin = old_stdout, old_stdin
 
 # ==============================================================================
 # DIFFICULTY GUIDANCE FOR AI PROMPTS
 # ==============================================================================
-SQL_DIFFICULTY_GUIDANCE = {
-    "Easy": (
-        "Very simple, single-concept query with only ONE thing to do — no combined "
-        "conditions, no joins, no aggregation. Should be solvable with a single "
-        "short SELECT. Good example: 'find all employees whose name starts with S'. "
-        "Do NOT combine two conditions (e.g. do NOT ask 'find the highest salary "
-        "among employees whose name starts with S' — that mixes two ideas and is "
-        "too hard for this level).\n\n"
-        "Pick ONE topic at random from this list to build the question around:\n"
-        "- Plain SELECT / SELECT DISTINCT on one table\n"
-        "- A single WHERE condition (one comparison operator)\n"
-        "- ORDER BY (ascending or descending)\n"
-        "- LIMIT / OFFSET (e.g. 'top 5 rows')\n"
-        "- Column aliasing with AS\n"
-        "- A single AND / OR / NOT condition\n"
-        "- IN or BETWEEN\n"
-        "- LIKE with a wildcard (%, _)\n"
-        "- IS NULL / IS NOT NULL"
-    ),
-    "Basic": (
-        "Simple query that may combine up to two small conditions (e.g. a WHERE "
-        "clause plus a simple aggregate like COUNT/AVG on one table), still clearly "
-        "beginner-friendly. No joins yet.\n\n"
-        "Pick ONE topic at random from this list to build the question around "
-        "(combine it with at most one simple WHERE condition if it makes the "
-        "question more realistic):\n"
-        "- CREATE TABLE / ALTER TABLE / constraints (PRIMARY KEY, NOT NULL, "
-        "UNIQUE, DEFAULT, CHECK) — framed as a query-writing task, not raw DDL trivia\n"
-        "- CASE WHEN statements (simple, 2-3 branches)\n"
-        "- INSERT INTO / UPDATE / DELETE on a single table\n"
-        "- Aggregate functions: COUNT, SUM, AVG, MIN, MAX (single table, no JOIN)\n"
-        "- GROUP BY\n"
-        "- HAVING vs WHERE (simple case)\n"
-        "- String functions: CONCAT, SUBSTRING, TRIM, REPLACE, LENGTH\n"
-        "- Date functions: DATEADD/DATE, DATEDIFF, EXTRACT/STRFTIME, current date\n"
-        "- Math functions: ROUND, CEIL, FLOOR, ABS"
-    ),
-    "Intermediate": (
-        "Requires combining multiple conditions, a JOIN across two tables, or "
-        "GROUP BY with a HAVING clause.\n\n"
-        "Pick ONE topic at random from this list to build the question around:\n"
-        "- INNER JOIN across two tables\n"
-        "- LEFT JOIN / RIGHT JOIN (including finding unmatched rows)\n"
-        "- FULL OUTER JOIN or CROSS JOIN\n"
-        "- SELF JOIN\n"
-        "- Multi-table joins (3 tables)\n"
-        "- MERGE / UPSERT logic\n"
-        "- Scalar or nested subqueries (non-correlated)\n"
-        "- EXISTS / NOT EXISTS\n"
-        "- UNION / UNION ALL\n"
-        "- INTERSECT / EXCEPT (or MINUS)\n"
-        "- CREATE VIEW / querying a view (updatable vs non-updatable)\n"
-        "- CTEs with a WITH clause (non-recursive)\n"
-        "- GROUP BY combined with a HAVING clause filtering on an aggregate"
-    ),
-    "Advanced": (
-        "Complex, realistic, multi-step query requiring careful reasoning — "
-        "multiple joins, subqueries, window functions, or nested aggregations.\n\n"
-        "Pick ONE topic at random from this list to build the question around:\n"
-        "- Correlated subqueries\n"
-        "- Materialized views (or a scenario that mimics one)\n"
-        "- Window functions: ROW_NUMBER, RANK, DENSE_RANK, NTILE with OVER()/PARTITION BY\n"
-        "- Aggregate window functions (running totals, moving averages)\n"
-        "- Offset functions: LAG, LEAD\n"
-        "- Frame clauses: ROWS BETWEEN / RANGE BETWEEN\n"
-        "- Recursive CTEs (e.g. org charts, hierarchical/tree data)\n"
-        "- Stored procedures or functions (scalar / table-valued), written as a "
-        "SQLite-compatible query task since SQLite doesn't support real stored "
-        "procs — simulate the logic in a single complex query instead\n"
-        "- Triggers (framed as 'write the query that achieves what a trigger would')\n"
-        "- Multi-join + subquery + aggregation combined in one realistic business "
-        "scenario (e.g. top N per group, cumulative sales, retention analysis)"
-    ),
-}
+# Each level has an "intro" (overall complexity description) and a "topics" list
+# (the exact concepts questions can be built around). These are the single
+# source of truth for BOTH the AI prompt and the topic-selector dropdown in the
+# UI, so the dropdown options always match what the AI is actually told to do.
+RANDOM_TOPIC_LABEL = "🎲 Surprise me (random topic)"
 
-PYTHON_DIFFICULTY_GUIDANCE = {
-    "Easy": (
-        "Very simple, single-concept task with only ONE thing to do — no combined "
-        "conditions and no multi-step logic. Should be solvable in a few lines. "
-        "Good examples: 'find words in a list longer than 4 letters', 'write a "
-        "function that returns the square and cube of a number'. Do NOT combine "
-        "multiple conditions or steps — too hard for this level."
-    ),
-    "Basic": (
-        "Simple task that may combine up to two small steps (e.g. filter a list "
-        "AND transform it), still clearly beginner-friendly. One core concept at "
-        "a time — e.g. loops, conditionals, basic string/list methods."
-    ),
-    "Intermediate": (
-        "Requires chaining a few steps of logic, or applying a single meatier "
-        "Python concept — e.g. recursion, dictionaries/sets for counting or "
-        "grouping, sorting with a custom key, basic OOP (a class with a couple of "
-        "methods), string parsing, or list/dict comprehensions."
-    ),
-    "Advanced": (
-        "A more involved algorithmic or design problem — e.g. a small algorithm "
-        "(searching, backtracking, dynamic programming basics), decorators, "
-        "generators, working with multiple classes/inheritance, or a multi-step "
-        "data-processing pipeline over a SINGLE structure (one list/dict), with "
-        "edge cases to handle."
-    ),
+
+def _pick_fresh_random_topic(state_key, level, topics):
+    """Random topic pick that avoids repeating the exact same topic this level
+    just used, so hitting 'Generate New Problem' on Random doesn't hand back
+    the same concept twice in a row. Falls back to the full list if there's
+    only one topic to choose from."""
+    last_used = st.session_state.get(state_key, {}).get(level)
+    candidates = [t for t in topics if t != last_used] or topics
+    choice = random.choice(candidates)
+    st.session_state.setdefault(state_key, {})[level] = choice
+    return choice
+
+SQL_DIFFICULTY_GUIDANCE = {
+    "Easy": {
+        "intro": (
+            "Very simple, single-concept query with only ONE thing to do — no combined "
+            "conditions, no joins, no aggregation. Should be solvable with a single "
+            "short SELECT. Good example: 'find all employees whose name starts with S'. "
+            "Do NOT combine two conditions (e.g. do NOT ask 'find the highest salary "
+            "among employees whose name starts with S' — that mixes two ideas and is "
+            "too hard for this level)."
+        ),
+        "topics": [
+            "Plain SELECT / SELECT DISTINCT on one table",
+            "A single WHERE condition (one comparison operator)",
+            "ORDER BY (ascending or descending)",
+            "LIMIT / OFFSET (e.g. 'top 5 rows')",
+            "Column aliasing with AS",
+            "A single AND / OR / NOT condition",
+            "IN or BETWEEN",
+            "LIKE with a wildcard (%, _)",
+            "IS NULL / IS NOT NULL",
+        ],
+    },
+    "Basic": {
+        "intro": (
+            "Simple query that may combine up to two small conditions (e.g. a WHERE "
+            "clause plus a simple aggregate like COUNT/AVG on one table), still clearly "
+            "beginner-friendly. No joins yet."
+        ),
+        "topics": [
+            "CREATE TABLE / ALTER TABLE / constraints (PRIMARY KEY, NOT NULL, UNIQUE, DEFAULT, CHECK)",
+            "CASE WHEN statements (simple, 2-3 branches)",
+            "INSERT INTO / UPDATE / DELETE on a single table",
+            "Aggregate functions: COUNT, SUM, AVG, MIN, MAX (single table, no JOIN)",
+            "GROUP BY",
+            "HAVING vs WHERE (simple case)",
+            "String functions: CONCAT, SUBSTRING, TRIM, REPLACE, LENGTH",
+            "Date functions: DATEADD/DATE, DATEDIFF, EXTRACT/STRFTIME, current date",
+            "Math functions: ROUND, CEIL, FLOOR, ABS",
+        ],
+    },
+    "Intermediate": {
+        "intro": (
+            "Requires combining multiple conditions, a JOIN across two tables, or "
+            "GROUP BY with a HAVING clause."
+        ),
+        "topics": [
+            "INNER JOIN across two tables",
+            "LEFT JOIN / RIGHT JOIN (including finding unmatched rows)",
+            "FULL OUTER JOIN or CROSS JOIN",
+            "SELF JOIN",
+            "Multi-table joins (3 tables)",
+            "MERGE / UPSERT logic",
+            "Scalar or nested subqueries (non-correlated)",
+            "EXISTS / NOT EXISTS",
+            "UNION / UNION ALL",
+            "INTERSECT / EXCEPT (or MINUS)",
+            "CREATE VIEW / querying a view (updatable vs non-updatable)",
+            "CTEs with a WITH clause (non-recursive)",
+            "GROUP BY combined with a HAVING clause filtering on an aggregate",
+        ],
+    },
+    "Advanced": {
+        "intro": (
+            "Complex, realistic, multi-step query requiring careful reasoning — "
+            "multiple joins, subqueries, window functions, or nested aggregations."
+        ),
+        "topics": [
+            "Correlated subqueries",
+            "Materialized views (or a scenario that mimics one)",
+            "Window functions: ROW_NUMBER, RANK, DENSE_RANK, NTILE with OVER()/PARTITION BY",
+            "Aggregate window functions (running totals, moving averages)",
+            "Offset functions: LAG, LEAD",
+            "Frame clauses: ROWS BETWEEN / RANGE BETWEEN",
+            "Recursive CTEs (e.g. org charts, hierarchical/tree data)",
+            "Stored procedures or functions, simulated as a single SQLite-compatible query",
+            "Triggers (framed as 'write the query that achieves what a trigger would')",
+            "Multi-join + subquery + aggregation combined in one business scenario",
+        ],
+    },
 }
 
 # IMPORTANT: keep Python problems distinctly Python-flavored, not SQL-in-disguise.
@@ -179,6 +187,138 @@ PYTHON_DOMAIN_GUIDANCE = (
     "kind of join-and-aggregate problem belongs to this app's separate SQL track, "
     "not Python — write something using Python-native concepts instead."
 )
+
+PYTHON_DIFFICULTY_GUIDANCE = {
+    "Easy": {
+        "intro": (
+            "Very simple, single-concept task with only ONE thing to do — no combined "
+            "conditions and no multi-step logic. Should be solvable in a few lines. "
+            "Good examples: 'find words in a list longer than 4 letters', 'write a "
+            "function that returns the square and cube of a number'. Do NOT combine "
+            "multiple conditions or steps — too hard for this level."
+        ),
+        "topics": [
+            "Variables, basic data types, and type conversion/casting",
+            "Arithmetic, comparison, and logical operators",
+            "if / elif / else (single condition)",
+            "for loop over a range or list (single loop, no nesting)",
+            "while loop (simple counter)",
+            "break / continue / pass",
+            "String indexing and slicing",
+            "List creation, indexing, slicing, and basic methods (append, len)",
+            "Tuple basics (packing/unpacking)",
+        ],
+    },
+    "Basic": {
+        "intro": (
+            "Simple task that may combine up to two small steps (e.g. filter a list "
+            "AND transform it), still clearly beginner-friendly. One core concept at "
+            "a time — e.g. loops, conditionals, basic string/list methods."
+        ),
+        "topics": [
+            "Ternary (conditional) expressions",
+            "Nested loops or conditionals (up to two levels)",
+            "Sets: uniqueness and set operations (union, intersection, difference)",
+            "Dictionaries: creation, methods, iteration",
+            "Nested data structures (list of dicts / dict of lists) — simple access",
+            "Defining functions: def, parameters, default/keyword args, return values",
+            "Lambda functions (basic use)",
+            "String formatting: f-strings, .format()",
+            "Common string methods: split, join, strip, replace, find",
+            "File handling basics: open/read/write with a 'with' statement",
+            "JSON basics: json.load / json.dumps",
+            "datetime/time basics",
+        ],
+    },
+    "Intermediate": {
+        "intro": (
+            "Requires chaining a few steps of logic, or applying a single meatier "
+            "Python concept — e.g. recursion, dictionaries/sets for counting or "
+            "grouping, sorting with a custom key, basic OOP (a class with a couple of "
+            "methods), string parsing, or list/dict comprehensions."
+        ),
+        "topics": [
+            "List / dict / set comprehensions, generator expressions",
+            "*args and **kwargs",
+            "Scope: global / nonlocal",
+            "Recursion",
+            "Regular expressions (re module) for pattern matching",
+            "try/except/else/finally and custom exceptions",
+            "OOP basics: classes, __init__, self, instance vs class attributes, single inheritance, @staticmethod/@classmethod/@property",
+            "The collections module: Counter, defaultdict, namedtuple, deque",
+            "map() / filter() and higher-order functions",
+            "Searching (linear/binary) and sorting with a custom key via sorted()",
+            "pandas basics: DataFrame/Series creation, filtering, groupby",
+            "numpy basics: arrays, indexing, basic vectorized operations",
+        ],
+    },
+    "Advanced": {
+        "intro": (
+            "A more involved algorithmic or design problem — e.g. a small algorithm "
+            "(searching, backtracking, dynamic programming basics), decorators, "
+            "generators, working with multiple classes/inheritance, or a multi-step "
+            "data-processing pipeline over a SINGLE structure (one list/dict), with "
+            "edge cases to handle."
+        ),
+        "topics": [
+            "Multiple/multilevel inheritance and polymorphism",
+            "Abstract base classes (abc module)",
+            "Magic/dunder methods (__str__, __repr__, __len__, __eq__, etc.)",
+            "Composition vs inheritance",
+            "heapq (priority queues) and bisect (binary search module)",
+            "functools: reduce, partial, lru_cache",
+            "Decorators (function or class decorators, functools.wraps)",
+            "Generators and iterators (__iter__/__next__, yield)",
+            "Sorting algorithms implemented from scratch (bubble/merge/quick)",
+            "Recursion and backtracking, or dynamic programming basics",
+            "pandas advanced: merging, pivoting, multi-index, apply/lambda chains",
+            "numpy advanced: broadcasting, vectorized operations, basic linear algebra",
+        ],
+    },
+}
+
+
+# ==============================================================================
+# UI NAVIGATION
+# ==============================================================================
+st.title("⚡ Dynamic Code Practice (AI Generated)")
+
+col_track, col_diff, col_topic = st.columns(3)
+with col_track:
+    track = st.selectbox("Select Track:", ["🗄️ SQL Database Practice", "🐍 Python Practice"])
+with col_diff:
+    level = st.selectbox("Select Difficulty:", ["Easy", "Basic", "Intermediate", "Advanced"])
+with col_topic:
+    _guidance = SQL_DIFFICULTY_GUIDANCE if track == "🗄️ SQL Database Practice" else PYTHON_DIFFICULTY_GUIDANCE
+    topic_choice = st.selectbox(
+        "Focus on a specific concept:",
+        [RANDOM_TOPIC_LABEL] + _guidance[level]["topics"],
+        help="Leave on 'Surprise me' to let the AI pick a topic within this difficulty level, or lock in a specific concept to drill.",
+    )
+
+# ==============================================================================
+# SESSION STATS
+# ==============================================================================
+# Tracks how many problems have been solved this session, and how many of those
+# were solved WITHOUT ever opening the hint or solution ("clean solves"). Each
+# counter only increments once per problem — a problem is marked solved the
+# first time it's answered correctly, so re-submitting a correct query/code
+# repeatedly doesn't inflate the count.
+for _key in ("stats_sql_solved", "stats_sql_clean", "stats_py_solved", "stats_py_clean"):
+    if _key not in st.session_state:
+        st.session_state[_key] = 0
+
+stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+with stat_col1:
+    st.metric("🗄️ SQL Solved", st.session_state.stats_sql_solved)
+with stat_col2:
+    st.metric("🗄️ SQL Clean Solves", st.session_state.stats_sql_clean, help="Solved without opening the hint or solution")
+with stat_col3:
+    st.metric("🐍 Python Solved", st.session_state.stats_py_solved)
+with stat_col4:
+    st.metric("🐍 Python Clean Solves", st.session_state.stats_py_clean, help="Solved without opening the hint or solution")
+
+st.divider()
 
 # ==============================================================================
 # AI GENERATION LOGIC
@@ -235,10 +375,27 @@ def _parse_json_response(text):
     return _fix_double_escaping(parsed)
 
 
-def generate_sql_problem(difficulty):
+def _topic_instruction(difficulty, guidance_dict, topic):
+    """Builds the topic-selection portion of the prompt. If the user locked in a
+    specific concept via the dropdown, force the AI to use exactly that concept
+    instead of picking randomly."""
+    topics_text = "\n".join(f"- {t}" for t in guidance_dict[difficulty]["topics"])
+    if topic and topic != RANDOM_TOPIC_LABEL:
+        return (
+            f'Build the question specifically around this exact concept: "{topic}". '
+            f"Do not substitute a different concept even if it feels easier to write — "
+            f"the user deliberately chose to drill this one."
+        )
+    return "Pick ONE topic at random from this list to build the question around:\n" + topics_text
+
+
+def generate_sql_problem(difficulty, topic=None):
     prompt = f"""
     Generate a unique, creative, and realistic SQL practice question at {difficulty} level.
-    Difficulty guidance: {SQL_DIFFICULTY_GUIDANCE[difficulty]}
+    Difficulty guidance: {SQL_DIFFICULTY_GUIDANCE[difficulty]["intro"]}
+
+    {_topic_instruction(difficulty, SQL_DIFFICULTY_GUIDANCE, topic)}
+
     Return ONLY a raw JSON object with NO markdown code block formatting (no ```json wrapper).
 
     IMPORTANT constraint on "solution_sql": the user's query is graded by comparing
@@ -249,7 +406,7 @@ def generate_sql_problem(difficulty):
     - If solution_sql has NO explicit "AS" alias on a column, do NOT mention any
       expected column name in the description at all — do not say things like
       "the result should be named COUNT(*)". An un-aliased column's raw expression
-      (e.g. "COUNT(*)","count(*)") is just SQLite's automatic default, not something the user
+      (e.g. "COUNT(*)") is just SQLite's automatic default, not something the user
       chose or needs to replicate deliberately, so calling it out is confusing noise.
     - ONLY if you deliberately give a column a custom "AS" alias (e.g.
       `AS recent_order_count`, `AS total_sales`) — a real word/name, not the raw
@@ -269,15 +426,30 @@ def generate_sql_problem(difficulty):
     - "solution_sql": the exact correct SQL query to solve the problem
     - "hint": a short, gentle hint (1-2 sentences) that nudges toward the right SQL
       clause/function to use WITHOUT giving away the full query or the answer
+    - "concept_name": short name of the SQL concept this question tests (e.g.
+      "LIKE operator", "LEFT JOIN", "Window functions: RANK()")
+    - "concept_explanation": a clear, tutorial-style explanation (3-5 sentences) of
+      that concept — what it does, its general syntax, and 1-2 short generic
+      syntax examples (NOT related to this specific question's tables/data, just
+      the general pattern, e.g. "WHERE column LIKE 'A%'" for LIKE). This teaches
+      the underlying concept independent of the specific question.
+    - "solution_walkthrough": a list of 2-5 short strings, each explaining ONE
+      clause/part of solution_sql and what it does in THIS specific query (e.g.
+      "WHERE name LIKE '%Pro%' — keeps only rows where the name column contains
+      the substring 'Pro' anywhere in it"). Walk through the query roughly in the
+      order its clauses execute. Keep each entry to one sentence.
     """
     text = _call_groq(prompt)
     return _parse_json_response(text)
 
 
-def generate_python_problem(difficulty):
+def generate_python_problem(difficulty, topic=None):
     prompt = f"""
     Generate a unique Python coding challenge at {difficulty} level.
-    Difficulty guidance: {PYTHON_DIFFICULTY_GUIDANCE[difficulty]}
+    Difficulty guidance: {PYTHON_DIFFICULTY_GUIDANCE[difficulty]["intro"]}
+
+    {_topic_instruction(difficulty, PYTHON_DIFFICULTY_GUIDANCE, topic)}
+
     Return ONLY a raw JSON object with NO markdown code block formatting.
 
     {PYTHON_DOMAIN_GUIDANCE}
@@ -309,6 +481,18 @@ def generate_python_problem(difficulty):
       there to help the user understand the pattern.
     - "hint": a short, gentle hint (1-2 sentences) suggesting a function/approach to
       use WITHOUT giving away the full solution
+    - "concept_name": short name of the Python concept this question tests (e.g.
+      "List comprehensions", "*args and **kwargs", "Decorators")
+    - "concept_explanation": a clear, tutorial-style explanation (3-5 sentences) of
+      that concept — what it does, its general syntax, and 1-2 short generic code
+      examples (NOT related to this specific question's data, just the general
+      pattern). This teaches the underlying concept independent of the specific
+      question.
+    - "solution_walkthrough": a list of 2-5 short strings, each explaining ONE
+      meaningful step/line of solution_code and what it does in THIS specific
+      solution (e.g. "squares = [n**2 for n in nums] — builds a new list holding
+      the square of every number in nums"). Walk through the logic roughly in
+      execution order. Keep each entry to one sentence.
     """
     text = _call_groq(prompt)
     return _parse_json_response(text)
@@ -320,10 +504,17 @@ if track == "🗄️ SQL Database Practice":
     if st.button("🔄 Generate New SQL Problem", type="secondary") or "sql_problem" not in st.session_state:
         with st.spinner("Creating custom database and dynamic scenario..."):
             try:
-                st.session_state.sql_problem = generate_sql_problem(level)
+                if topic_choice == RANDOM_TOPIC_LABEL:
+                    actual_topic = _pick_fresh_random_topic(
+                        "sql_last_topic_by_level", level, SQL_DIFFICULTY_GUIDANCE[level]["topics"]
+                    )
+                else:
+                    actual_topic = topic_choice
+                st.session_state.sql_problem = generate_sql_problem(level, actual_topic)
                 st.session_state.sql_show_hint = False
                 st.session_state.sql_show_solution = False
                 st.session_state.sql_attempts = 0
+                st.session_state.sql_problem_solved = False
                 st.session_state.sql_problem_id = st.session_state.get("sql_problem_id", 0) + 1
             except RateLimitError:
                 st.error("⏳ Groq's free-tier rate limit was hit. Wait a minute and try again.")
@@ -347,6 +538,8 @@ if track == "🗄️ SQL Database Practice":
 
     with left:
         st.subheader(f"📌 {problem['title']} ({level})")
+        if problem.get("concept_name"):
+            st.caption(f"🏷️ Concept: {problem['concept_name']}")
         st.markdown(problem['description'])
 
         st.markdown("**📊 Sample Tables**")
@@ -354,20 +547,35 @@ if track == "🗄️ SQL Database Practice":
             st.caption(f"Table: `{table}`")
             st.dataframe(pd.read_sql_query(f"SELECT * FROM {table}", conn), hide_index=True, use_container_width=True)
 
+        if problem.get("concept_explanation"):
+            with st.expander(f"📚 Learn: {problem.get('concept_name', 'this concept')}"):
+                st.markdown(problem["concept_explanation"])
+
+        attempts_so_far = st.session_state.get("sql_attempts", 0)
         hint_col, sol_col = st.columns(2)
         with hint_col:
             if st.button("💡 Hint"):
                 st.session_state.sql_show_hint = True
         with sol_col:
-            if st.session_state.get("sql_attempts", 0) >= 3:
-                if st.button("📖 Solution"):
-                    st.session_state.sql_show_solution = True
+            solution_unlocked = attempts_so_far >= 3
+            if st.button(
+                "📖 Solution" if solution_unlocked else f"📖 Solution ({attempts_so_far}/3 attempts)",
+                disabled=not solution_unlocked,
+                help=None if solution_unlocked else "Try submitting at least 3 attempts to unlock the solution.",
+            ):
+                st.session_state.sql_show_solution = True
 
         if st.session_state.get("sql_show_hint"):
             st.info(f"**Hint:** {problem.get('hint', 'Think about which SQL clause filters or aggregates the rows you need.')}")
         if st.session_state.get("sql_show_solution"):
             st.markdown("**📖 Solution:**")
             st.code(problem["solution_sql"], language="sql")
+            if problem.get("solution_walkthrough"):
+                st.markdown("**🔎 Step-by-step:**")
+                for step in problem["solution_walkthrough"]:
+                    st.markdown(f"- {step}")
+            st.markdown("**Expected output:**")
+            st.dataframe(expected_df, hide_index=True, use_container_width=True)
 
     with right:
         st.markdown("**📝 Your SQL Solution**")
@@ -406,12 +614,17 @@ if track == "🗄️ SQL Database Practice":
                 st.write("**Your Query Output:**")
                 st.dataframe(user_df, hide_index=True)
 
-                if user_df.equals(expected_df):
+                if user_df.shape == expected_df.shape and _cols_match_ci(user_df.columns, expected_df.columns) and (user_df.values == expected_df.values).all():
                     st.balloons()
                     st.success("🎉 Correct! Your query returned the exact expected dataset.")
+                    if not st.session_state.get("sql_problem_solved"):
+                        st.session_state.sql_problem_solved = True
+                        st.session_state.stats_sql_solved += 1
+                        if not st.session_state.get("sql_show_hint") and not st.session_state.get("sql_show_solution"):
+                            st.session_state.stats_sql_clean += 1
                 elif (
                     user_df.shape == expected_df.shape
-                    and list(user_df.columns) != list(expected_df.columns)
+                    and not _cols_match_ci(user_df.columns, expected_df.columns)
                     and (user_df.values == expected_df.values).all()
                 ):
                     # Values match exactly, only the column name(s) differ — this is
@@ -435,10 +648,17 @@ else:
     if st.button("🔄 Generate New Python Problem", type="secondary") or "py_problem" not in st.session_state:
         with st.spinner("Building fresh Python challenge..."):
             try:
-                st.session_state.py_problem = generate_python_problem(level)
+                if topic_choice == RANDOM_TOPIC_LABEL:
+                    actual_topic = _pick_fresh_random_topic(
+                        "py_last_topic_by_level", level, PYTHON_DIFFICULTY_GUIDANCE[level]["topics"]
+                    )
+                else:
+                    actual_topic = topic_choice
+                st.session_state.py_problem = generate_python_problem(level, actual_topic)
                 st.session_state.py_show_hint = False
                 st.session_state.py_show_solution = False
                 st.session_state.py_attempts = 0
+                st.session_state.py_problem_solved = False
                 st.session_state.py_problem_id = st.session_state.get("py_problem_id", 0) + 1
             except RateLimitError:
                 st.error("⏳ Groq's free-tier rate limit was hit. Wait a minute and try again.")
@@ -453,26 +673,47 @@ else:
 
     with left:
         st.subheader(f"📌 {problem['title']} ({level})")
+        if problem.get("concept_name"):
+            st.caption(f"🏷️ Concept: {problem['concept_name']}")
         st.markdown(problem['description'])
 
         if problem.get("example"):
             st.caption("💭 Example (for illustration only — uses different data than your actual task):")
             st.code(problem["example"], language="text")
 
+        if problem.get("concept_explanation"):
+            with st.expander(f"📚 Learn: {problem.get('concept_name', 'this concept')}"):
+                st.markdown(problem["concept_explanation"])
+
+        attempts_so_far = st.session_state.get("py_attempts", 0)
         hint_col, sol_col = st.columns(2)
         with hint_col:
             if st.button("💡 Hint"):
                 st.session_state.py_show_hint = True
         with sol_col:
-            if st.session_state.get("py_attempts", 0) >= 3:
-                if st.button("📖 Solution"):
-                    st.session_state.py_show_solution = True
+            solution_unlocked = attempts_so_far >= 3
+            if st.button(
+                "📖 Solution" if solution_unlocked else f"📖 Solution ({attempts_so_far}/3 attempts)",
+                disabled=not solution_unlocked,
+                help=None if solution_unlocked else "Try submitting at least 3 attempts to unlock the solution.",
+            ):
+                st.session_state.py_show_solution = True
 
         if st.session_state.get("py_show_hint"):
             st.info(f"**Hint:** {problem.get('hint', 'Break the problem into small steps and print as you go.')}")
         if st.session_state.get("py_show_solution"):
             st.markdown("**📖 Solution:**")
             st.code(problem["solution_code"], language="python")
+            if problem.get("solution_walkthrough"):
+                st.markdown("**🔎 Step-by-step:**")
+                for step in problem["solution_walkthrough"]:
+                    st.markdown(f"- {step}")
+            try:
+                solution_output = run_user_code(problem["solution_code"])
+                st.markdown("**Expected output:**")
+                st.code(solution_output if solution_output else "[No Output]")
+            except Exception:
+                pass  # solution should always run cleanly; silently skip display if not
 
     with right:
         st.markdown("**Your Python Code:**")
@@ -489,21 +730,6 @@ else:
             min_lines=14,
             key=f"py_editor_{st.session_state.get('py_problem_id', 0)}",
         )
-
-        def run_user_code(code):
-            """Execute user code with stdout captured and stdin blocked (empty).
-            If the code tries to read input (input()/sys.stdin.read()), it fails
-            immediately with EOFError instead of hanging forever waiting for
-            input that will never arrive in this app."""
-            buffer = io.StringIO()
-            old_stdout, old_stdin = sys.stdout, sys.stdin
-            sys.stdout = buffer
-            sys.stdin = io.StringIO("")  # empty stdin -> input() raises EOFError immediately
-            try:
-                exec(code)
-                return buffer.getvalue()
-            finally:
-                sys.stdout, sys.stdin = old_stdout, old_stdin
 
         run_col, submit_col = st.columns(2)
         with run_col:
@@ -548,6 +774,11 @@ else:
                     if output.strip() == expected_output.strip():
                         st.balloons()
                         st.success("🎉 Correct! Output matches expected result.")
+                        if not st.session_state.get("py_problem_solved"):
+                            st.session_state.py_problem_solved = True
+                            st.session_state.stats_py_solved += 1
+                            if not st.session_state.get("py_show_hint") and not st.session_state.get("py_show_solution"):
+                                st.session_state.stats_py_clean += 1
                     else:
                         st.error("❌ Output mismatch.")
                         st.write("**Your Output:**")
