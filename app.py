@@ -5,8 +5,8 @@ import json
 import io
 import sys
 import random
-from groq import Groq, RateLimitError
-from streamlit_ace import st_ace
+from groq import Groq, RateLimitError # type: ignore
+from streamlit_ace import st_ace # type: ignore
 
 st.set_page_config(page_title="Dynamic AI Code Practice", page_icon="⚡", layout="wide")
 
@@ -864,7 +864,7 @@ if track == "🗄️ SQL Database Practice":
             show_print_margin=False,
             wrap=False,
             auto_update=True,       # live-updates as you type; removes the Apply button
-            min_lines=14,
+            min_lines=30,
             key=f"sql_editor_{st.session_state.get('sql_problem_id', 0)}",
         )
 
@@ -908,6 +908,7 @@ if track == "🗄️ SQL Database Practice":
 
                     if _dfs_equal_ci(user_df, expected_df):
                         st.balloons()
+                        st.snow()
                         st.success("🎉 Correct! Your query returned the exact expected dataset.")
                         if not st.session_state.get("sql_problem_solved"):
                             st.session_state.sql_problem_solved = True
@@ -1057,7 +1058,7 @@ else:
             show_print_margin=False,
             wrap=False,
             auto_update=True,       # live-updates as you type; removes the Apply button
-            min_lines=14,
+            min_lines=30,
             key=f"py_editor_{st.session_state.get('py_problem_id', 0)}",
         )
 
