@@ -11,23 +11,191 @@ from streamlit_ace import st_ace
 st.set_page_config(page_title="Dynamic AI Code Practice", page_icon="⚡", layout="wide")
 
 # ==============================================================================
-# CUSTOM CODE FONT (Consolas / Courier New / Cascadia Code)
+# THEME
 # ==============================================================================
+# A dark "code editor" aesthetic grounded in the app's actual subject matter:
+# an ambient backdrop of drifting SQL/Python syntax fragments, a blinking
+# terminal-cursor accent on the title, and an accent color that switches
+# between SQL-teal and Python-gold depending on which track is active (set
+# right after the track selectbox further down). Space Grotesk carries the
+# headers, Inter carries body text, and JetBrains Mono — a typeface literally
+# designed for code — carries stats, captions, and code blocks.
+EDITOR_FONT = "'JetBrains Mono', 'Cascadia Code', Consolas, 'Courier New', monospace"
+
 st.markdown(
     """
     <style>
-    /* st.code blocks (output panes) */
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+    :root {
+        --bg-base: #0B0F17;
+        --bg-surface: #131A26;
+        --bg-surface-2: #1A2230;
+        --border-soft: #232B3D;
+        --text-primary: #E8ECF4;
+        --text-muted: #8D96AC;
+        --accent: #2DD4BF;
+        --accent-glow: rgba(45, 212, 191, 0.35);
+        --accent-soft: rgba(45, 212, 191, 0.14);
+        --font-display: 'Space Grotesk', sans-serif;
+        --font-body: 'Inter', sans-serif;
+        --font-mono: 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+    }
+
+    html, body, [data-testid="stAppViewContainer"] {
+        background: var(--bg-base) !important;
+        color: var(--text-primary);
+        font-family: var(--font-body);
+    }
+    [data-testid="stHeader"] { background: transparent; }
+    [data-testid="stAppViewContainer"] .main .block-container {
+        position: relative;
+        z-index: 1;
+        animation: fadeIn 0.5s ease;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ---- ambient floating syntax backdrop (the signature element) ---- */
+    .code-bg { position: fixed; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
+    .code-bg span {
+        position: absolute;
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
+        color: var(--accent);
+        opacity: 0.07;
+        white-space: nowrap;
+        animation: drift 16s ease-in-out infinite;
+    }
+    @keyframes drift {
+        0%, 100% { transform: translateY(0px); opacity: 0.05; }
+        50% { transform: translateY(-16px); opacity: 0.13; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        .code-bg span { animation: none; }
+        [data-testid="stAppViewContainer"] .main .block-container { animation: none; }
+    }
+
+    /* ---- typography ---- */
+    h1, h2, h3 { font-family: var(--font-display) !important; }
+    [data-testid="stAppViewContainer"] h1 {
+        background: linear-gradient(90deg, var(--text-primary), var(--accent));
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        display: inline-block;
+    }
+    [data-testid="stAppViewContainer"] h1::after {
+        content: "▋";
+        -webkit-text-fill-color: var(--accent);
+        color: var(--accent);
+        margin-left: 8px;
+        animation: blink 1.1s steps(1) infinite;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+    h2, h3 {
+        border-left: 3px solid var(--accent);
+        padding-left: 0.6rem;
+        color: var(--text-primary) !important;
+    }
+    [data-testid="stCaptionContainer"], .stCaption, small {
+        font-family: var(--font-mono) !important;
+        color: var(--text-muted) !important;
+    }
+
+    /* ---- buttons ---- */
+    .stButton > button, .stDownloadButton > button {
+        font-family: var(--font-display);
+        font-weight: 600;
+        border-radius: 10px;
+        border: 1px solid var(--border-soft);
+        background: var(--bg-surface);
+        color: var(--text-primary);
+        transition: all 0.2s ease;
+    }
+    .stButton > button:hover:not(:disabled) {
+        border-color: var(--accent);
+        box-shadow: 0 0 16px var(--accent-glow);
+        transform: translateY(-1px);
+        color: var(--accent);
+    }
+    .stButton > button:disabled { opacity: 0.4; }
+    .stButton > button[kind="primary"], button[data-testid*="primary"] {
+        background: linear-gradient(135deg, var(--accent), var(--bg-surface-2));
+        border: none;
+        color: #0B0F17 !important;
+    }
+
+    /* ---- metrics (session stats bar) ---- */
+    [data-testid="stMetric"] {
+        background: var(--bg-surface);
+        border: 1px solid var(--border-soft);
+        border-radius: 12px;
+        padding: 0.9rem 1rem;
+        transition: border-color 0.2s ease;
+    }
+    [data-testid="stMetric"]:hover { border-color: var(--accent); }
+    [data-testid="stMetricValue"] { font-family: var(--font-mono) !important; color: var(--accent) !important; }
+    [data-testid="stMetricLabel"] { font-family: var(--font-body) !important; color: var(--text-muted) !important; }
+
+    /* ---- inputs ---- */
+    [data-testid="stSelectbox"] div[data-baseweb="select"] > div {
+        background: var(--bg-surface) !important;
+        border-color: var(--border-soft) !important;
+        border-radius: 8px !important;
+    }
+
+    /* ---- expanders / alerts ---- */
+    [data-testid="stExpander"] {
+        background: var(--bg-surface);
+        border: 1px solid var(--border-soft);
+        border-radius: 10px;
+    }
+    [data-testid="stAlert"] { border-radius: 10px; border-left: 4px solid var(--accent); }
+
+    /* ---- code blocks (st.code / ace editor output) ---- */
     code, pre, .stCode, .stCode code, .stCode pre {
         font-family: 'Cascadia Code', Consolas, 'Courier New', monospace !important;
     }
+    [data-testid="stCodeBlock"], pre {
+        border-radius: 10px !important;
+        border: 1px solid var(--border-soft) !important;
+        border-left: 3px solid var(--accent) !important;
+    }
+
+    /* ---- dataframes ---- */
+    [data-testid="stDataFrame"] {
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid var(--border-soft);
+    }
+
+    hr { border-color: var(--border-soft) !important; }
     </style>
+
+    <div class="code-bg">
+        <span style="top:6%; left:8%; animation-delay:0s;">SELECT *</span>
+        <span style="top:14%; left:78%; animation-delay:1.2s;">def solve():</span>
+        <span style="top:22%; left:35%; animation-delay:2.4s;">JOIN ON</span>
+        <span style="top:30%; left:60%; animation-delay:0.6s;">lambda x:</span>
+        <span style="top:40%; left:12%; animation-delay:3s;">WHERE x = 1</span>
+        <span style="top:48%; left:85%; animation-delay:1.8s;">for i in range(n):</span>
+        <span style="top:56%; left:45%; animation-delay:2.2s;">GROUP BY</span>
+        <span style="top:64%; left:20%; animation-delay:0.9s;">class Node:</span>
+        <span style="top:72%; left:70%; animation-delay:3.4s;">ORDER BY DESC</span>
+        <span style="top:80%; left:5%; animation-delay:1.5s;">{k: v for k in d}</span>
+        <span style="top:88%; left:55%; animation-delay:2.8s;">import pandas as pd</span>
+        <span style="top:10%; left:50%; animation-delay:0.3s;">try / except</span>
+        <span style="top:92%; left:30%; animation-delay:1.1s;">HAVING COUNT(*)</span>
+        <span style="top:35%; left:90%; animation-delay:2s;">== True</span>
+    </div>
     """,
     unsafe_allow_html=True,
 )
-
-# Shared font stack for the Ace code editor (line numbers + syntax highlighting +
-# auto-indent, like HackerRank/LeetCode). Ace uses the first installed font it finds.
-EDITOR_FONT = "Cascadia Code, Consolas, 'Courier New', monospace"
 
 # ==============================================================================
 # API SETUP
@@ -320,6 +488,17 @@ with col_topic:
         help="Leave on 'Surprise me' to let the AI pick a topic within this difficulty level, or lock in a specific concept to drill.",
     )
 
+# Accent color reflects whichever track is active: SQL-teal or Python-gold.
+# This overrides the :root variables set in the theme block above — same
+# selector specificity, later in the document wins, so this takes effect.
+_accent = "#2DD4BF" if track == "🗄️ SQL Database Practice" else "#F2C94C"
+_accent_glow = "rgba(45, 212, 191, 0.35)" if track == "🗄️ SQL Database Practice" else "rgba(242, 201, 76, 0.35)"
+_accent_soft = "rgba(45, 212, 191, 0.14)" if track == "🗄️ SQL Database Practice" else "rgba(242, 201, 76, 0.14)"
+st.markdown(
+    f"<style>:root {{ --accent: {_accent}; --accent-glow: {_accent_glow}; --accent-soft: {_accent_soft}; }}</style>",
+    unsafe_allow_html=True,
+)
+
 # ==============================================================================
 # SESSION STATS
 # ==============================================================================
@@ -434,6 +613,21 @@ def generate_sql_problem(difficulty, topic=None):
        "verify" or "show" the result — the app automatically displays the
        resulting table state afterward, so a verification SELECT is unnecessary
        and must not be mixed into "solution_sql" for this type.
+
+    IMPORTANT — this app runs on SQLite specifically, which has real limitations
+    other databases don't. If the question involves ALTER TABLE, respect these
+    SQLite restrictions or the query will error at runtime:
+    - `ALTER TABLE ... ADD COLUMN` can NEVER add a UNIQUE or PRIMARY KEY
+      constraint (SQLite raises "Cannot add a UNIQUE column"). If a UNIQUE or
+      PRIMARY KEY column is needed, put it in the original CREATE TABLE inside
+      "setup_sql" instead — don't add it later via ALTER TABLE.
+    - `ALTER TABLE ... ADD COLUMN` with NOT NULL requires a constant DEFAULT
+      value (NOT NULL alone with no default will fail on a non-empty table).
+    - SQLite cannot ADD or DROP multiple columns in a single ALTER TABLE
+      statement — use one ALTER TABLE statement per column changed.
+    - Foreign key constraints added via ALTER TABLE are not enforced/supported
+      the same way as in setup_sql's CREATE TABLE — prefer defining foreign
+      keys in CREATE TABLE, not via ALTER TABLE.
     Pick the type based on the topic below and write "solution_sql" accordingly.
 
     IMPORTANT constraint on "solution_sql": the user's query is graded by comparing
@@ -563,32 +757,50 @@ if track == "🗄️ SQL Database Practice":
 
     problem = st.session_state.sql_problem
 
-    # Initialize SQLite database for this problem
-    conn = sqlite3.connect(":memory:")
-    cursor = conn.cursor()
-    cursor.executescript(problem["setup_sql"])
-    conn.commit()
+    # Initialize SQLite database for this problem. Wrapped defensively: the AI
+    # occasionally generates SQL that's invalid in SQLite specifically (e.g.
+    # `ALTER TABLE ... ADD COLUMN x UNIQUE`, which SQLite disallows even though
+    # it's valid in other databases). Rather than letting that hard-crash the
+    # whole app with a raw traceback, show a clear message and offer an
+    # instant regenerate so a bad generation just costs one click.
+    try:
+        conn = sqlite3.connect(":memory:")
+        cursor = conn.cursor()
+        cursor.executescript(problem["setup_sql"])
+        conn.commit()
 
-    # Get Expected Solution Result
-    solution_is_select = _is_select_like(problem["solution_sql"])
+        # Get Expected Solution Result
+        solution_is_select = _is_select_like(problem["solution_sql"])
 
-    if solution_is_select:
-        # Single row-returning query — grade by comparing the returned DataFrame.
-        expected_df = pd.read_sql_query(problem["solution_sql"], conn)
-        expected_tables = None
-    else:
-        # Data-modifying task (INSERT/UPDATE/DELETE/MERGE, possibly several
-        # statements). Apply it to a SEPARATE fresh copy of the initial data so
-        # `conn` (used for showing sample tables and running the user's query)
-        # stays untouched — then snapshot the resulting tables. That snapshot
-        # is what correctness is graded against.
-        sol_conn = sqlite3.connect(":memory:")
-        sol_conn.executescript(problem["setup_sql"])
-        sol_conn.executescript(problem["solution_sql"])
-        sol_conn.commit()
-        expected_tables = _snapshot_tables(sol_conn, problem["tables_to_show"])
-        sol_conn.close()
-        expected_df = None
+        if solution_is_select:
+            # Single row-returning query — grade by comparing the returned DataFrame.
+            expected_df = pd.read_sql_query(problem["solution_sql"], conn)
+            expected_tables = None
+        else:
+            # Data-modifying task (INSERT/UPDATE/DELETE/MERGE, possibly several
+            # statements). Apply it to a SEPARATE fresh copy of the initial data so
+            # `conn` (used for showing sample tables and running the user's query)
+            # stays untouched — then snapshot the resulting tables. That snapshot
+            # is what correctness is graded against.
+            sol_conn = sqlite3.connect(":memory:")
+            sol_conn.executescript(problem["setup_sql"])
+            sol_conn.executescript(problem["solution_sql"])
+            sol_conn.commit()
+            expected_tables = _snapshot_tables(sol_conn, problem["tables_to_show"])
+            sol_conn.close()
+            expected_df = None
+    except sqlite3.Error as e:
+        st.error(
+            "⚠️ This AI-generated question contains SQL that isn't valid in SQLite "
+            f"(error: `{e}`). This happens occasionally — just regenerate for a new question."
+        )
+        with st.expander("Show the problematic SQL"):
+            st.code(problem.get("setup_sql", ""), language="sql")
+            st.code(problem.get("solution_sql", ""), language="sql")
+        if st.button("🔄 Regenerate a working question"):
+            del st.session_state["sql_problem"]
+            st.rerun()
+        st.stop()
 
     left, right = st.columns([1, 1])
 
