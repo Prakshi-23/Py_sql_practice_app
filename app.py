@@ -864,7 +864,7 @@ if track == "🗄️ SQL Database Practice":
             show_print_margin=False,
             wrap=False,
             auto_update=True,       # live-updates as you type; removes the Apply button
-            min_lines=30,
+            min_lines=25,
             key=f"sql_editor_{st.session_state.get('sql_problem_id', 0)}",
         )
 
@@ -1058,7 +1058,7 @@ else:
             show_print_margin=False,
             wrap=False,
             auto_update=True,       # live-updates as you type; removes the Apply button
-            min_lines=30,
+            min_lines=25,
             key=f"py_editor_{st.session_state.get('py_problem_id', 0)}",
         )
 
