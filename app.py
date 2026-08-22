@@ -54,6 +54,30 @@ def _cols_match_ci(cols_a, cols_b):
     return norm(cols_a) == norm(cols_b)
 
 
+def _is_select_like(query):
+    """Does this query return rows (SELECT / WITH...SELECT), or does it modify
+    data (INSERT/UPDATE/DELETE/etc)? pandas.read_sql_query only works for a
+    single row-returning statement, so this decides which grading path to use."""
+    words = query.strip().split(None, 1)
+    first_word = words[0].upper() if words else ""
+    return first_word in ("SELECT", "WITH")
+
+
+def _snapshot_tables(conn, table_names):
+    """Return {table_name: DataFrame} for the given tables' current contents."""
+    return {t: pd.read_sql_query(f"SELECT * FROM {t}", conn) for t in table_names}
+
+
+def _dfs_equal_ci(df_a, df_b):
+    """DataFrame equality that's case/whitespace-insensitive on column names
+    (SUM(x) vs sum(x) are the same in SQL) but exact on values."""
+    if df_a.shape != df_b.shape:
+        return False
+    if not _cols_match_ci(df_a.columns, df_b.columns):
+        return False
+    return (df_a.values == df_b.values).all()
+
+
 def run_user_code(code):
     """Execute Python code with stdout captured and stdin blocked (empty).
     If the code tries to read input (input()/sys.stdin.read()), it fails
@@ -398,6 +422,20 @@ def generate_sql_problem(difficulty, topic=None):
 
     Return ONLY a raw JSON object with NO markdown code block formatting (no ```json wrapper).
 
+    IMPORTANT — this app supports two kinds of question, and "solution_sql" must
+    be formatted correctly for whichever kind this is:
+    1. SELECT-type (most topics): "solution_sql" is EXACTLY ONE row-returning
+       statement — a single SELECT, or one WITH ... SELECT CTE chain. Never
+       multiple semicolon-separated statements for this type.
+    2. Data-modifying type (topics like INSERT INTO / UPDATE / DELETE / MERGE /
+       UPSERT): "solution_sql" should contain ONLY the INSERT/UPDATE/DELETE
+       statement(s) needed to accomplish the task — one or more statements is
+       fine here, each ending in ';'. Do NOT append a trailing SELECT to
+       "verify" or "show" the result — the app automatically displays the
+       resulting table state afterward, so a verification SELECT is unnecessary
+       and must not be mixed into "solution_sql" for this type.
+    Pick the type based on the topic below and write "solution_sql" accordingly.
+
     IMPORTANT constraint on "solution_sql": the user's query is graded by comparing
     its output DataFrame to solution_sql's output DataFrame EXACTLY, including
     column names. So:
@@ -532,7 +570,25 @@ if track == "🗄️ SQL Database Practice":
     conn.commit()
 
     # Get Expected Solution Result
-    expected_df = pd.read_sql_query(problem["solution_sql"], conn)
+    solution_is_select = _is_select_like(problem["solution_sql"])
+
+    if solution_is_select:
+        # Single row-returning query — grade by comparing the returned DataFrame.
+        expected_df = pd.read_sql_query(problem["solution_sql"], conn)
+        expected_tables = None
+    else:
+        # Data-modifying task (INSERT/UPDATE/DELETE/MERGE, possibly several
+        # statements). Apply it to a SEPARATE fresh copy of the initial data so
+        # `conn` (used for showing sample tables and running the user's query)
+        # stays untouched — then snapshot the resulting tables. That snapshot
+        # is what correctness is graded against.
+        sol_conn = sqlite3.connect(":memory:")
+        sol_conn.executescript(problem["setup_sql"])
+        sol_conn.executescript(problem["solution_sql"])
+        sol_conn.commit()
+        expected_tables = _snapshot_tables(sol_conn, problem["tables_to_show"])
+        sol_conn.close()
+        expected_df = None
 
     left, right = st.columns([1, 1])
 
@@ -574,13 +630,20 @@ if track == "🗄️ SQL Database Practice":
                 st.markdown("**🔎 Step-by-step:**")
                 for step in problem["solution_walkthrough"]:
                     st.markdown(f"- {step}")
-            st.markdown("**Expected output:**")
-            st.dataframe(expected_df, hide_index=True, use_container_width=True)
+            if solution_is_select:
+                st.markdown("**Expected output:**")
+                st.dataframe(expected_df, hide_index=True, use_container_width=True)
+            else:
+                st.markdown("**Expected table state after running this:**")
+                for t, df in expected_tables.items():
+                    st.caption(f"Table: `{t}`")
+                    st.dataframe(df, hide_index=True, use_container_width=True)
 
     with right:
         st.markdown("**📝 Your SQL Solution**")
+        starter_value = "SELECT * FROM ..." if solution_is_select else "-- Write your INSERT/UPDATE/DELETE statement(s) here"
         user_query = st_ace(
-            value="SELECT * FROM ...",
+            value=starter_value,
             language="sql",
             theme="dracula",
             font_size=15,
@@ -601,43 +664,98 @@ if track == "🗄️ SQL Database Practice":
 
         if run_clicked:
             try:
-                user_df = pd.read_sql_query(user_query, conn)
-                st.write("**Query Output:**")
-                st.dataframe(user_df, hide_index=True)
+                if _is_select_like(user_query):
+                    user_df = pd.read_sql_query(user_query, conn)
+                    st.write("**Query Output:**")
+                    st.dataframe(user_df, hide_index=True)
+                else:
+                    # Data-modifying query: run it against a throwaway copy of
+                    # the initial data so repeated Run clicks don't stack side
+                    # effects, then show the resulting table state.
+                    preview_conn = sqlite3.connect(":memory:")
+                    preview_conn.executescript(problem["setup_sql"])
+                    preview_conn.executescript(user_query)
+                    preview_conn.commit()
+                    st.write("**Resulting table state:**")
+                    for t in problem["tables_to_show"]:
+                        st.caption(f"Table: `{t}`")
+                        st.dataframe(pd.read_sql_query(f"SELECT * FROM {t}", preview_conn), hide_index=True, use_container_width=True)
+                    preview_conn.close()
             except Exception as e:
                 st.error(f"SQL Error: {e}")
 
         if submit_clicked:
             st.session_state.sql_attempts = st.session_state.get("sql_attempts", 0) + 1
             try:
-                user_df = pd.read_sql_query(user_query, conn)
-                st.write("**Your Query Output:**")
-                st.dataframe(user_df, hide_index=True)
+                user_is_select = _is_select_like(user_query)
 
-                if user_df.shape == expected_df.shape and _cols_match_ci(user_df.columns, expected_df.columns) and (user_df.values == expected_df.values).all():
-                    st.balloons()
-                    st.success("🎉 Correct! Your query returned the exact expected dataset.")
-                    if not st.session_state.get("sql_problem_solved"):
-                        st.session_state.sql_problem_solved = True
-                        st.session_state.stats_sql_solved += 1
-                        if not st.session_state.get("sql_show_hint") and not st.session_state.get("sql_show_solution"):
-                            st.session_state.stats_sql_clean += 1
-                elif (
-                    user_df.shape == expected_df.shape
-                    and not _cols_match_ci(user_df.columns, expected_df.columns)
-                    and (user_df.values == expected_df.values).all()
-                ):
-                    # Values match exactly, only the column name(s) differ — this is
-                    # a naming/aliasing mismatch, not a logic error. Tell the user
-                    # exactly what column name(s) are expected instead of a generic error.
-                    expected_cols = ", ".join(f"`{c}`" for c in expected_df.columns)
-                    st.warning(
-                        f"🟡 Your data/values are correct, but the expected output "
-                        f"column name(s) are {expected_cols}. Add an alias to your "
-                        f"query, e.g. `AS {expected_df.columns[0]}`, and resubmit."
+                if user_is_select and solution_is_select:
+                    user_df = pd.read_sql_query(user_query, conn)
+                    st.write("**Your Query Output:**")
+                    st.dataframe(user_df, hide_index=True)
+
+                    if _dfs_equal_ci(user_df, expected_df):
+                        st.balloons()
+                        st.success("🎉 Correct! Your query returned the exact expected dataset.")
+                        if not st.session_state.get("sql_problem_solved"):
+                            st.session_state.sql_problem_solved = True
+                            st.session_state.stats_sql_solved += 1
+                            if not st.session_state.get("sql_show_hint") and not st.session_state.get("sql_show_solution"):
+                                st.session_state.stats_sql_clean += 1
+                    elif (
+                        user_df.shape == expected_df.shape
+                        and not _cols_match_ci(user_df.columns, expected_df.columns)
+                        and (user_df.values == expected_df.values).all()
+                    ):
+                        # Values match exactly, only the column name(s) differ — this is
+                        # a naming/aliasing mismatch, not a logic error. Tell the user
+                        # exactly what column name(s) are expected instead of a generic error.
+                        expected_cols = ", ".join(f"`{c}`" for c in expected_df.columns)
+                        st.warning(
+                            f"🟡 Your data/values are correct, but the expected output "
+                            f"column name(s) are {expected_cols}. Add an alias to your "
+                            f"query, e.g. `AS {expected_df.columns[0]}`, and resubmit."
+                        )
+                    else:
+                        st.error("❌ Output mismatch. Try revising your query.")
+
+                elif (not user_is_select) and (not solution_is_select):
+                    # Data-modifying task: run the user's statement(s) against a
+                    # FRESH copy of the initial data (never the shared `conn`,
+                    # so repeated submits don't stack changes on top of each
+                    # other), then compare the resulting table state.
+                    attempt_conn = sqlite3.connect(":memory:")
+                    attempt_conn.executescript(problem["setup_sql"])
+                    attempt_conn.executescript(user_query)
+                    attempt_conn.commit()
+                    user_tables = _snapshot_tables(attempt_conn, problem["tables_to_show"])
+                    attempt_conn.close()
+
+                    st.write("**Resulting table state:**")
+                    for t, df in user_tables.items():
+                        st.caption(f"Table: `{t}`")
+                        st.dataframe(df, hide_index=True, use_container_width=True)
+
+                    all_match = all(
+                        _dfs_equal_ci(user_tables[t], expected_tables[t])
+                        for t in problem["tables_to_show"]
                     )
+                    if all_match:
+                        st.balloons()
+                        st.success("🎉 Correct! The tables ended up in exactly the expected state.")
+                        if not st.session_state.get("sql_problem_solved"):
+                            st.session_state.sql_problem_solved = True
+                            st.session_state.stats_sql_solved += 1
+                            if not st.session_state.get("sql_show_hint") and not st.session_state.get("sql_show_solution"):
+                                st.session_state.stats_sql_clean += 1
+                    else:
+                        st.error("❌ The resulting table state doesn't match yet. Try revising your query.")
+
                 else:
-                    st.error("❌ Output mismatch. Try revising your query.")
+                    # Query-type mismatch: task expects a SELECT but the user
+                    # wrote a data-modifying statement, or vice versa.
+                    expected_kind = "a SELECT query" if solution_is_select else "an INSERT/UPDATE/DELETE statement"
+                    st.error(f"❌ This task expects {expected_kind}. Check the task description and revise your query.")
             except Exception as e:
                 st.error(f"SQL Error: {e}")
 
