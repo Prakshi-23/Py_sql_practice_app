@@ -908,7 +908,6 @@ if track == "🗄️ SQL Database Practice":
 
                     if _dfs_equal_ci(user_df, expected_df):
                         st.balloons()
-                        st.snow()
                         st.success("🎉 Correct! Your query returned the exact expected dataset.")
                         if not st.session_state.get("sql_problem_solved"):
                             st.session_state.sql_problem_solved = True
