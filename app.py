@@ -853,7 +853,7 @@ if track == "🗄️ SQL Database Practice":
 
     with right:
         st.markdown("**📝 Your SQL Solution**")
-        starter_value = "SELECT * FROM ..." if solution_is_select else "-- Write your INSERT/UPDATE/DELETE statement(s) here"
+        starter_value = "SELECT * FROM " if solution_is_select else "-- Write your INSERT/UPDATE/DELETE statement(s) here"
         user_query = st_ace(
             value=starter_value,
             language="sql",
