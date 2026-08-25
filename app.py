@@ -813,7 +813,7 @@ if track == "🗄️ SQL Database Practice":
         st.markdown("**📊 Sample Tables**")
         for table in problem["tables_to_show"]:
             st.caption(f"Table: `{table}`")
-            st.dataframe(pd.read_sql_query(f"SELECT * FROM {table}", conn), hide_index=True, use_container_width=True)
+            st.dataframe(pd.read_sql_query(f"SELECT * FROM {table}", conn), hide_index=True, width=True)
 
         if problem.get("concept_explanation"):
             with st.expander(f"📚 Learn: {problem.get('concept_name', 'this concept')}"):
@@ -844,12 +844,12 @@ if track == "🗄️ SQL Database Practice":
                     st.markdown(f"- {step}")
             if solution_is_select:
                 st.markdown("**Expected output:**")
-                st.dataframe(expected_df, hide_index=True, use_container_width=True)
+                st.dataframe(expected_df, hide_index=True, width=True)
             else:
                 st.markdown("**Expected table state after running this:**")
                 for t, df in expected_tables.items():
                     st.caption(f"Table: `{t}`")
-                    st.dataframe(df, hide_index=True, use_container_width=True)
+                    st.dataframe(df, hide_index=True, width=True)
 
     with right:
         st.markdown("**📝 Your SQL Solution**")
@@ -870,9 +870,9 @@ if track == "🗄️ SQL Database Practice":
 
         run_col, submit_col = st.columns(2)
         with run_col:
-            run_clicked = st.button("▶️ Run", use_container_width=True)
+            run_clicked = st.button("▶️ Run", width=True)
         with submit_col:
-            submit_clicked = st.button("✅ Submit", type="primary", use_container_width=True)
+            submit_clicked = st.button("✅ Submit", type="primary", width=True)
 
         if run_clicked:
             try:
@@ -891,7 +891,7 @@ if track == "🗄️ SQL Database Practice":
                     st.write("**Resulting table state:**")
                     for t in problem["tables_to_show"]:
                         st.caption(f"Table: `{t}`")
-                        st.dataframe(pd.read_sql_query(f"SELECT * FROM {t}", preview_conn), hide_index=True, use_container_width=True)
+                        st.dataframe(pd.read_sql_query(f"SELECT * FROM {t}", preview_conn), hide_index=True, width=True)
                     preview_conn.close()
             except Exception as e:
                 st.error(f"SQL Error: {e}")
@@ -946,7 +946,7 @@ if track == "🗄️ SQL Database Practice":
                     st.write("**Resulting table state:**")
                     for t, df in user_tables.items():
                         st.caption(f"Table: `{t}`")
-                        st.dataframe(df, hide_index=True, use_container_width=True)
+                        st.dataframe(df, hide_index=True, width=True)
 
                     all_match = all(
                         _dfs_equal_ci(user_tables[t], expected_tables[t])
@@ -1063,9 +1063,9 @@ else:
 
         run_col, submit_col = st.columns(2)
         with run_col:
-            run_clicked = st.button("▶️ Run", use_container_width=True)
+            run_clicked = st.button("▶️ Run", width=True)
         with submit_col:
-            submit_clicked = st.button("✅ Submit", type="primary", use_container_width=True)
+            submit_clicked = st.button("✅ Submit", type="primary", width=True)
 
         if run_clicked:
             try:
